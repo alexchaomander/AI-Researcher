@@ -31,6 +31,8 @@ def search_github_repos(context_variables, query, limit=5):
     """
     date_limit = context_variables.get("date_limit")
     assert date_limit, "Date limit is required"
+    if not GITHUB_AI_TOKEN:
+        return "GitHub token not provided; skipping repository search."
 
     exclude_users = ["lucidrains"]
     if exclude_users:
@@ -110,6 +112,8 @@ def search_github_code(repo_owner: str,
     Returns:
         List[Dict]: The search results list
     """
+    if not GITHUB_AI_TOKEN:
+        return json.dumps([], indent=4)
     searcher = GitHubSearcher(GITHUB_AI_TOKEN)
     results = searcher.search_code(repo_owner, repo_name, query, language, per_page, page)
     # print(results)

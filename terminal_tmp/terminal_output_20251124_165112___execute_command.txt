@@ -1,0 +1,7 @@
+Archive:  agent0.zip
+  End-of-central-directory signature not found.  Either this file is not
+  a zipfile, or it constitutes one disk of a multi-part archive.  In the
+  latter case the central directory and zipfile comment will be found on
+  the last disk(s) of this archive.
+unzip:  cannot find zipfile directory in one of agent0.zip or
+        agent0.zip.zip, and cannot find agent0.zip.ZIP, period.

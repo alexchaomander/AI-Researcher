@@ -38,6 +38,8 @@ import re
 
 # litellm.set_verbose=True
 # litellm.num_retries = 3
+if API_BASE_URL:
+    litellm.api_base = API_BASE_URL
 
 def should_retry_error(retry_state: RetryCallState):
     """检查是否应该重试错误

@@ -1,9 +1,15 @@
 import dataclasses
-from tree_sitter import Language
-import tree_sitter
 import glob
 import uuid
+from typing import Optional
+
+import tree_sitter
 from loguru import logger
+
+try:
+    from tree_sitter_languages import get_language  # provides prebuilt grammars
+except Exception:  # pragma: no cover - optional dependency
+    get_language = None
 
 @dataclasses.dataclass
 class Snippet:
@@ -19,14 +25,19 @@ class Snippet:
 class CodeParser:
     """Code Parser Class."""
 
-    def __init__(self, language: str, node_types: list[str], path_to_object_file: str):
+    def __init__(self, language: str, node_types: list[str], path_to_object_file: Optional[str] = None):
         self.node_types = node_types
         self.language = language
         try:
             self.parser = tree_sitter.Parser()
-            self.parser.set_language(
-                tree_sitter.Language(f"{path_to_object_file}/my-languages.so", language)
-            )
+            if path_to_object_file:
+                self.parser.set_language(
+                    tree_sitter.Language(f"{path_to_object_file}/my-languages.so", language)
+                )
+            elif get_language:
+                self.parser.set_language(get_language(language))
+            else:
+                raise RuntimeError("tree-sitter grammar unavailable; install tree-sitter-languages or provide a compiled grammar.")
         except Exception as e:
             logger.exception("failed to build %s parser: ", e)
 

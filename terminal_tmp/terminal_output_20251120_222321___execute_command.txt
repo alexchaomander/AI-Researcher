@@ -1,0 +1,6 @@
+Cloning into 'taming-transformers'...
+error: RPC failed; curl 56 Recv failure: Connection reset by peer
+error: 5150 bytes of body are still expected
+fetch-pack: unexpected disconnect while reading sideband packet
+fatal: early EOF
+fatal: fetch-pack: invalid index-pack output

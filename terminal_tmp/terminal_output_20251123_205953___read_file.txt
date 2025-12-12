@@ -1,0 +1,57 @@
+Vol.:(0123456789)
+Data Science and Engineering 
+https://doi.org/10.1007/s41019-025-00296-9
+REVIEW/SURVEY PAPERS
+LLM‑Based Agents for Tool Learning: A Survey
+Weikai Xu1 · Chengrui Huang1 · Shen Gao1 · Shuo Shang1
+Received: 9 October 2024 / Revised: 5 April 2025 / Accepted: 21 April 2025 
+© The Author(s) 2025
+Abstract
+Human beings capable of making and using tools can accomplish tasks far beyond their innate abilities, and this paradigm of 
+integration with tools may not be limited to humans themselves. Recently, the large language model (LLM) has demonstrated 
+immense potential across various fields with its unique planning and reasoning abilities. However, there are still many chal-
+lenges beyond its capabilities due to deficiencies in its training data and inherent illusions. Thus, integrating LLMs and tools 
+into tool learning agents has become a new emerging research direction. To this end, we present a systematic investigation 
+and comprehensive review of tool-learning agents in this paper. We start by introducing the definition of the tool learning 
+task for Agents and then illustrating the  typical architecture of the tool-learning models. Since these tools are all defined by 
+users, LLM does not know what tools there are and what their functions are. Thus, LLMs should first find appropriate tools 
+and split the tool retrieval methods into two categories: training-based and non-training-based. To accurately complete the 
+user task, it is important to decompose the task into several sub-tasks and execute them in the correct order. Following that, 
+we introduce the tool planning methods and organize these works by whether they rely on the model’s inherent reasoning 
+capabilities for planning or utilize external reasoning tools. Due to the rapid development of this field, we also introduce 
+an emerging frontier direction: using multimodal tools for LLM. In addition, we compile current open-source benchmarks 
+and evaluation metrics, focusing on their scale, composition, calculation methods, and assessment dimensions. Next, we 
+introduce several application scenarios for the LLM-based tool learning methods. Finally, we discuss the safety and ethical 
+issues involved in tool learning.
+Keywords Large language model · Tool learning · Agent · Vision-language model
+1 Introduction
+Tool- learning is considered a unique ability of humans [4]. 
+The innovation and application of tools expand the range of 
+available resources, empowering humans to overcome physi-
+ological limitations and enhancing problem-solving effi-
+ciency [37]. Recently, LLMs have demonstrated impressive 
+abilities in reasoning and comprehension. There is a growing 
+interest in their potential to interact with the real world and 
+enhance their functionality through integration with external 
+tools. Inspired by human tool learning, the integration of 
+tool-learning capabilities into LLMs has received extensive 
+attention in the literature. The goal of tool learning is to 
+empower LLMs to understand the functionality of various 
+tools and employ them effectively to accomplish specific 
+tasks.
+The integration of multiple inputs, multi-agent planning 
+strategies and reasoning frameworks, along with diverse 
+tool repositories, facilitates the development of tool learning 
+capabilities within LLMs. Thus, equipping LLMs with tools 
+has become a new emerging research direction. Currently, 
+research primarily focuses on two approaches for integrating 
+LLMs with tools. The first approach focuses on empowering 
+LLMs to master the use and application of tools, thereby 
+enhancing LLMs intelligence. The second approach endeav-
+ors to view tools as extensions of LLMs inherent capabili-
+ties. The two approaches share the same three steps to aug-
+ment LLMs with tools: invoking tools at the right time, 
+retrieving the appropriate tools, and effectively utilizing 
+them to solve real-world tasks. However, each of the three 
+steps in tool-learning presents several challenges: (1) LLMs 
+

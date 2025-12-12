@@ -1,4 +1,5 @@
 
+import os
 from research_agent.inno.tools.file_surfer_tool import with_env as with_env_file
 from research_agent.inno.tools.file_surfer_tool import (
     open_local_file,
@@ -11,7 +12,8 @@ from research_agent.inno.tools.file_surfer_tool import (
 )
 from research_agent.inno.environment.markdown_browser import RequestsMarkdownBrowser
 from research_agent.inno.environment.docker_env import with_env as with_env_docker
-from research_agent.inno.environment.docker_env import DockerConfig, DockerEnv
+from research_agent.inno.environment.docker_env import DockerConfig, DockerEnv, with_env as with_env_docker
+from research_agent.inno.tools.inno_tools.download_tools import pdf_to_markdown
 from research_agent.inno.types import Agent
 from inspect import signature
 from research_agent.inno.types import Result
@@ -20,10 +22,12 @@ from typing import List
 
 def get_paper_survey_agent(model: str, **kwargs):
     file_env: RequestsMarkdownBrowser = kwargs.get("file_env", None)
+    code_env: DockerEnv = kwargs.get("code_env", None)
     assert file_env is not None, "file_env is required"
     def instructions(context_variables):
+        papers_dir = f"{file_env.docker_workplace}/papers/"
         return f"""\
-You are a `Paper Survey Agent` specialized in analyzing academic papers. Your task is to extract and analyze specific academic concepts from research papers located in `{file_env.docker_workplace}/papers/`.
+You are a `Paper Survey Agent` specialized in analyzing academic papers. Your task is to extract and analyze specific academic concepts from research papers located in `{papers_dir}` if they exist.
 
 OBJECTIVE:
 - Analyze the provided academic definition
@@ -55,20 +59,28 @@ REQUIREMENTS:
 - Ensure all extracted information is directly relevant to the given academic definition
 - Provide clear and structured notes that can be effectively used by the Code Survey Agent
 
+If no papers are available in `{papers_dir}`, rely on the provided academic definitions and general knowledge to summarize formulas and concepts, and skip file/tool operations.
+
 Remember: Your analysis forms the theoretical foundation for the subsequent code implementation phase.
 """
-    tool_list = [
-        open_local_file,
-        page_up_markdown,
-        page_down_markdown,
-        find_on_page_ctrl_f,
-        find_next,
-        question_answer_on_whole_page,
-    ]
-    tool_list = [
-        with_env_file(file_env)(tool) if "env" in signature(tool).parameters else tool
-        for tool in tool_list
-    ]
+    tool_list = []
+    papers_path = f"{file_env.local_workplace}/papers"
+    if os.path.isdir(papers_path) and any(os.scandir(papers_path)):
+        tool_list = [
+            open_local_file,
+            page_up_markdown,
+            page_down_markdown,
+            find_on_page_ctrl_f,
+            find_next,
+            question_answer_on_whole_page,
+        ]
+        tool_list = [
+            with_env_file(file_env)(tool) if "env" in signature(tool).parameters else tool
+            for tool in tool_list
+        ]
+        if code_env is not None:
+            # Add PDF-to-Markdown helper from the sandbox for richer context.
+            tool_list.append(with_env_docker(code_env)(pdf_to_markdown))
     return Agent(
         name="Paper Survey Agent",
         model=model,
@@ -145,7 +157,22 @@ def case_resolved(context_variables: dict):
     """
     After you have taken enough notes for the innovation, you should use this function to merge the notes for the further innovation.
     """
-    merge_notes = "\n".join([f"## {note['definition']}\n* The math formula is:\n{note['math_formula']}\n* * The code implementation is:\n{note['code_implementation']}\n* Reference papers are:\n{note['reference_papers']}\n* Reference codebases are:\n{note['reference_codebases']}" for note in context_variables["notes"]])
+    notes = context_variables.get("notes", [])
+    merge_lines = []
+    for note in notes:
+        definition = note.get("definition", "N/A")
+        math_formula = note.get("math_formula", "N/A")
+        code_impl = note.get("code_implementation", "N/A")
+        ref_papers = note.get("reference_papers", [])
+        ref_codebases = note.get("reference_codebases", [])
+        merge_lines.append(
+            f"## {definition}\n"
+            f"* Math formula:\n{math_formula}\n"
+            f"* Code implementation:\n{code_impl}\n"
+            f"* Reference papers:\n{ref_papers}\n"
+            f"* Reference codebases:\n{ref_codebases}"
+        )
+    merge_notes = "\n".join(merge_lines)
     ret_val = f"""\
 I have merged the notes for the innovation.
 The notes are as follows:
@@ -202,7 +229,7 @@ IMPORTANT NOTES:
 
 Your goal is to create a complete knowledge base that bridges theoretical concepts with practical implementations for the proposed innovation.
 """
-    paper_survey_agent = get_paper_survey_agent(model, file_env=file_env)
+    paper_survey_agent = get_paper_survey_agent(model, file_env=file_env, code_env=code_env)
     code_survey_agent = get_code_survey_agent(model, code_env=code_env)
     survey_agent = Agent(
         name="Survey Agent",

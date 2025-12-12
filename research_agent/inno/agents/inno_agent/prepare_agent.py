@@ -1,11 +1,13 @@
 from research_agent.inno.types import Agent
 from research_agent.inno.tools.terminal_tools import gen_code_tree_structure, read_file, execute_command, terminal_page_down, terminal_page_up, terminal_page_to
+from research_agent.inno.tools.inno_tools.download_tools import clone_repo, download_repo_tar
 from research_agent.inno.util import make_message, make_tool_message
 from research_agent.inno.registry import register_agent
 from research_agent.inno.types import Result
 import json
 from inspect import signature
 from research_agent.inno.environment.docker_env import DockerEnv, with_env
+from research_agent.constant import GITHUB_AI_TOKEN
 
 def case_resolved(reference_codebases: list[str], reference_paths: list[str], reference_papers: list[str]):
     """
@@ -33,6 +35,7 @@ def get_prepare_agent(model: str, **kwargs):
     code_env: DockerEnv = kwargs.get("code_env", None)
     def instructions(context_variables):
       working_dir = context_variables.get("working_dir", None)
+      has_github_token = bool(GITHUB_AI_TOKEN)
       return f"""
 You are given a list of papers, searching results of the papers on GitHub, and innovative ideas according to the papers. Your working directory is `/{working_dir}`, you can only access files in this directory.
 
@@ -48,7 +51,9 @@ You should choose at least 5 repositories as the reference codebases.
 I should use the determined repositories as reference codebases to implement the innovative ideas, so your decision should be as accurate as possible, and the number of repositories should be as less as possible. 
 
 During the decision process, you can use the following tools:
-1. You can use `execute_command` to git clone the repository to the working directory `/{working_dir}`. Choose 5-8 repositories you really need. And you should reserve the names of the repositories.
+1. Repository acquisition:
+   - Use `clone_repo` to git clone repositories (PAT available: {"yes" if has_github_token else "no"}).
+   - Use `download_repo_tar` when git cloning is not feasible (public tarballs).
 
 2. You can use `gen_code_tree_structure` to generate the tree structure of the code in the repository.
 
@@ -58,7 +63,9 @@ During the decision process, you can use the following tools:
 
 4. Finally, you should use the function `case_resolved` to output the determined reference codebases.
       """
-    tools = [gen_code_tree_structure, read_file, execute_command, case_resolved, terminal_page_down, terminal_page_up, terminal_page_to]
+    tools = [gen_code_tree_structure, read_file, case_resolved, terminal_page_down, terminal_page_up, terminal_page_to, clone_repo, download_repo_tar]
+    if GITHUB_AI_TOKEN:
+        tools.append(execute_command)
     tools = [with_env(code_env)(tool) if 'env' in signature(tool).parameters else tool for tool in tools]
     return Agent(
     name="Prepare Agent",

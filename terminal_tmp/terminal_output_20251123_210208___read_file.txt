@@ -1,0 +1,86 @@
+On Evaluating the Integration of Reasoning and Action in LLM Agents
+with Database Question Answering
+Linyong Nan1 Ellen Zhang1 Weijin Zou2 Yilun Zhao1
+Wenfei Zhou3 Arman Cohan1,4
+1Yale University 2LinkedIn 3NVIDIA Corporation 4Allen Institute for AI
+{linyong.nan, ellen.zhang}@yale.edu
+Abstract
+This study introduces a new long-form database
+question answering dataset designed to evalu-
+ate how Large Language Models (LLMs) inter-
+act with a SQL interpreter. The task necessi-
+tates LLMs to strategically generate multiple
+SQL queries to retrieve sufficient data from a
+database, to reason with the acquired context,
+and to synthesize them into a comprehensive
+analytical narrative. Our findings highlight that
+this task poses great challenges even for the
+state-of-the-art GPT-4 model. We propose and
+evaluate two interaction strategies, and provide
+a fine-grained analysis of the individual stages
+within the interaction. A key discovery is the
+identification of two primary bottlenecks hin-
+dering effective interaction: the capacity for
+planning and the ability to generate multiple
+SQL queries. To address the challenge of accu-
+rately assessing answer quality, we introduce
+a multi-agent evaluation framework that simu-
+lates the academic peer-review process, enhanc-
+ing the precision and reliability of our evalu-
+ations. This framework allows for a more nu-
+anced understanding of the strengths and lim-
+itations of current LLMs in complex retrieval
+and reasoning tasks.
+1 Introduction
+Significant advancements in natural language pro-
+cessing have been driven by the development of
+Large Language Models (LLMs) (Devlin et al.,
+2019; Radford et al., 2019; Brown et al., 2020;
+Chowdhery et al., 2022; OpenAI, 2023), which
+have become fundamental components of numer-
+ous products used by millions, reshaping people’s
+habits on accessing information. Despite their
+widespread adoption and impact, LLMs face in-
+trinsic limitations due to their design, including
+limited context window, stochastic nature which
+makes them less suited for tasks requiring high
+standards of precision, and extensive computations
+(Mialon et al., 2023; Ji et al., 2023; Wang et al.,
+2023a). Many studies have explored ways to miti-
+gate these constraints by augmenting LLMs with
+modules/tools of complementary features (Nakano
+et al., 2022; Lewis et al., 2020; Lazaridou et al.,
+2022; Gao et al., 2023a; Parisi et al., 2022; Schick
+et al., 2023). In our study, we focus on augment-
+ing LLMs with a symbolic module - a SQL code
+interpreter - and assess their performance using the
+long-form database question-answering task that
+we introduce, illustrated in Figure 1. Such augmen-
+tation is inevitable for tasks involving databases,
+as they often far exceed the size of LLMs’ context
+windows1, making information retrieval through
+any means other than SQL inefficient. Addition-
+ally, the use of SQL queries brings transparency to
+the reasoning process of LLM agents, providing a
+means to validate the accuracy of their generated
+responses.
+LLMs augmented with external modules/tools
+possess two primary abilities: the capacity to act,
+which involves the use of tools, and the capabil-
+ity to reason, which encompasses planning and
+analyzing the outcomes of actions (Mialon et al.,
+2023; Madaan et al., 2023; Paul et al., 2023; Yao
+et al., 2023; Yoran et al., 2023; Shinn et al., 2023).
+While numerous studies have evaluated these abili-
+ties in different contexts, we contend that some of
+them focus more on evaluating tool selection and
+tool employment with less focus on evaluating how
+LLM agents reflect or synthesize the action results
+(Parisi et al., 2022; Schick et al., 2023; Zhuang
+et al., 2023; Li et al., 2023). Other research (Shus-
+ter et al., 2022; Yao et al., 2023; BehnamGhader
+et al., 2023) does examine both the action and rea-
+soning capacities of LLM agents, yet the actions’
+complexity is not as demanding as in studies with
+a stronger focus on the action aspect. Our goals
+are twofold: firstly

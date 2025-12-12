@@ -1,0 +1,14 @@
+{
+    "name": "download_arxiv_source_by_title",
+    "args": {
+        "paper_list": [
+            "Agent0: Unleashing Self-Evolving Agents from Zero Data via Tool-Integrated Reasoning",
+            "LLM-Based Agents for Tool Learning: A Survey",
+            "A Survey on LLM-based Multi-Agent Systems: Workflow, Infrastructure, and Challenges",
+            "On Evaluating the Integration of Reasoning and Action in LLM Agents"
+        ],
+        "local_root": "/Users/alexchao/projects/AI-Researcher/workplace_paper/task_agent_tools_openrouter__alibaba__tongyi-deepresearch-30b-a3b__free/workplace",
+        "workplace_name": "workplace"
+    },
+    "result": "Cannot find the paper 'Agent0: Unleashing Self-Evolving Agents from Zero Data via Tool-Integrated Reasoning' in arxiv\nCannot find the paper 'LLM-Based Agents for Tool Learning: A Survey' in arxiv\nCannot find the paper 'A Survey on LLM-based Multi-Agent Systems: Workflow, Infrastructure, and Challenges' in arxiv\nCannot find the paper 'On Evaluating the Integration of Reasoning and Action in LLM Agents' in arxiv"
+}

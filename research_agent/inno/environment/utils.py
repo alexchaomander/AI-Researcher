@@ -1,5 +1,8 @@
 from inno.util import run_command_in_container
-from constant import DOCKER_WORKPLACE_NAME
+try:
+    from constant import DOCKER_WORKPLACE_NAME
+except ImportError:
+    from research_agent.constant import DOCKER_WORKPLACE_NAME
 import os
 import shutil
 
@@ -28,9 +31,10 @@ def setup_dataset(category: str, local_workplace: str):
         return
     
     # 检查源目录是否存在
-    source_path = f"../benchmark/process/dataset_candidate/{category}"
+    source_path = os.path.normpath(os.path.join(os.path.dirname(__file__), f"../../benchmark/process/dataset_candidate/{category}"))
     if not os.path.exists(source_path):
-        raise Exception(f"source path {source_path} not exists")
+        print(f"warning: dataset source path {source_path} not found; skipping dataset setup")
+        return
     
     try:
         # 复制整个目录内容到 dataset_candidate

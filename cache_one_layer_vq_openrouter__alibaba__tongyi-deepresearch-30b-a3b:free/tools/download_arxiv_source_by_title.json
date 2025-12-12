@@ -1,0 +1,18 @@
+{
+    "name": "download_arxiv_source_by_title",
+    "args": {
+        "paper_list": [
+            "Neural discrete representation learning",
+            "Vector-quantized image modeling with improved VQGAN",
+            "Taming transformers for high-resolution image synthesis",
+            "Estimating or propagating gradients through stochastic neurons for conditional computation",
+            "Learning transferable visual models from natural language supervision.",
+            "Finite scalar quantization: VQ-VAE made simple.",
+            "Auto-encoding variational bayes.",
+            "Categorical reparameterization with gumbel-softmax."
+        ],
+        "local_root": "/Users/alexchao/projects/AI-Researcher/workplace_paper/task_one_layer_vq_openrouter__alibaba__tongyi-deepresearch-30b-a3b__free/workplace",
+        "workplace_name": "workplace"
+    },
+    "result": "Cannot find the paper 'Neural discrete representation learning' in arxiv\nCannot find the paper 'Vector-quantized image modeling with improved VQGAN' in arxiv\nCannot find the paper 'Taming transformers for high-resolution image synthesis' in arxiv\nCannot find the paper 'Estimating or propagating gradients through stochastic neurons for conditional computation' in arxiv\nCannot find the paper 'Learning transferable visual models from natural language supervision.' in arxiv\nCannot find the paper 'Finite scalar quantization: VQ-VAE made simple.' in arxiv\nCannot find the paper 'Auto-encoding variational bayes.' in arxiv\nCannot find the paper 'Categorical reparameterization with gumbel-softmax.' in arxiv"
+}

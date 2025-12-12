@@ -1,0 +1,50 @@
+{
+    "name": "load_instance",
+    "args": {
+        "instance_path": "benchmark/final/reasoning/agent_tools.json",
+        "task_level": "task1"
+    },
+    "result": {
+        "source_papers": [
+            {
+                "reference": "Agent0: Unleashing Self-Evolving Agents from Zero Data via Tool-Integrated Reasoning (arXiv:2511.16043)",
+                "rank": 1,
+                "type": [
+                    "methodological"
+                ],
+                "justification": "Primary reference on tool-integrated reasoning and self-evolving agents.",
+                "usage": "Core methodology and evaluation setup."
+            },
+            {
+                "reference": "LLM-Based Agents for Tool Learning: A Survey",
+                "rank": 2,
+                "type": [
+                    "survey"
+                ],
+                "justification": "Survey of tool-learning patterns and challenges for LLM agents.",
+                "usage": "Context and taxonomy for tool-learning strategies."
+            },
+            {
+                "reference": "A Survey on LLM-based Multi-Agent Systems: Workflow, Infrastructure, and Challenges",
+                "rank": 3,
+                "type": [
+                    "survey"
+                ],
+                "justification": "Survey of multi-agent workflows and infra considerations.",
+                "usage": "Guidance on multi-agent orchestration and infra."
+            },
+            {
+                "reference": "On Evaluating the Integration of Reasoning and Action in LLM Agents",
+                "rank": 4,
+                "type": [
+                    "evaluation"
+                ],
+                "justification": "Evaluation patterns for reasoning-action integration.",
+                "usage": "Evaluation metrics and methodology."
+            }
+        ],
+        "task_instructions": "Design a concise evaluation plan for tool-integrated LLM agents (single- and multi-agent) covering reasoning + action loops, tool-learning workflows, and evaluation metrics. Deliver: (1) a list of 5-8 high-value reference codebases or papers; (2) a compact plan for experiments (benchmarks, metrics for reasoning/action integration, ablations). Keep it practical and runnable on CPU; prefer Python/PyTorch codebases.",
+        "date": "2025-11-20",
+        "date_limit": "2025-11-20"
+    }
+}

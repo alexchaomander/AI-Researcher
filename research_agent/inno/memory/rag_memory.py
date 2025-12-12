@@ -1,4 +1,5 @@
 import uuid
+import os
 import os.path
 from datetime import datetime
 from typing import List, Dict
@@ -8,8 +9,9 @@ from abc import ABC, abstractmethod
 from openai import OpenAI
 import numpy as np
 from chromadb.api.types import QueryResult
+import requests
 chromadb.logger.setLevel(chromadb.logging.ERROR)
-from research_agent.constant import API_BASE_URL
+from research_agent.constant import API_BASE_URL, EMBEDDING_MODEL, get_llm_api_key
 
 class Memory:
     def __init__(
@@ -18,7 +20,7 @@ class Memory:
             db_name: str = '.sa',
             platform: str = 'OpenAI', 
             api_key: str = None, 
-            embedding_model: str = "text-embedding-3-small"
+            embedding_model: str = None
     ):
         """
         Memory: memory and external knowledge management.
@@ -34,10 +36,26 @@ class Memory:
         self.client.get_or_create_collection(
                 self.collection_name,
             ) 
+        chosen_model = embedding_model or EMBEDDING_MODEL
+        provider = platform
+        ollama_base = os.getenv("OLLAMA_BASE_URL")
+        if ollama_base:
+            provider = "Ollama"
         # use the OpenAI embedding function if the openai section is set in the configuration.
-        if platform == 'OpenAI':
-            openai_client = OpenAI(api_key=api_key or os.environ["OPENAI_API_KEY"], base_url=API_BASE_URL)
-            self.embedder = lambda x: [i.embedding for i in openai_client.embeddings.create(input=x, model=embedding_model).data]
+        if provider == 'OpenAI':
+            openai_client = OpenAI(api_key=api_key or get_llm_api_key(), base_url=API_BASE_URL)
+            self.embedder = lambda x: [i.embedding for i in openai_client.embeddings.create(input=x, model=chosen_model).data]
+        elif provider == 'Ollama':
+            ollama_url = ollama_base.rstrip('/') + "/api/embeddings"
+            def _ollama_embed(texts: List[str]):
+                embeddings = []
+                for text in texts:
+                    resp = requests.post(ollama_url, json={"model": chosen_model, "prompt": text})
+                    resp.raise_for_status()
+                    data = resp.json()
+                    embeddings.append(data["embedding"])
+                return embeddings
+            self.embedder = _ollama_embed
         else:
             # self.embedder = embedding_functions.DefaultEmbeddingFunction()
             self.embedder = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")

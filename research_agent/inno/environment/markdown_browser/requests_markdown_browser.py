@@ -20,8 +20,12 @@ from .markdown_search import AbstractMarkdownSearch, BingMarkdownSearch
 
 # TODO: Fix unfollowed import
 from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException  # type: ignore
-from inno.memory.paper_memory import PaperMemory
-from constant import API_BASE_URL
+from research_agent.inno.memory.paper_memory import PaperMemory
+from research_agent.constant import get_llm_api_key
+try:
+    from constant import API_BASE_URL
+except ImportError:
+    from research_agent.constant import API_BASE_URL
 def normalize_collection_name(name: str) -> str:
     """
     Normalize collection name to meet the following requirements:
@@ -127,7 +131,7 @@ class RequestsMarkdownBrowser(AbstractMarkdownBrowser):
         self._find_on_page_query: Union[str, None] = None
         self._find_on_page_last_result: Union[int, None] = None  # Location of the last result
         platform = 'default'
-        self._memory = PaperMemory(project_path="./paper_db", db_name=".paper_memory_" + platform, platform=platform, api_key=os.getenv("OPENAI_API_KEY"), embedding_model='text-embedding-3-small')
+        self._memory = PaperMemory(project_path="./paper_db", db_name=".paper_memory_" + platform, platform=platform, api_key=get_llm_api_key())
         self._current_page_path = None
 
     @property

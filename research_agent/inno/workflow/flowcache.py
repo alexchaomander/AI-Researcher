@@ -57,6 +57,8 @@ class AgentModule:
             agent_name_norm = agent_name_norm + f"_iter_{iter_times}"
         cache_file = f"{self.cache_path}/agents/{agent_name_norm}.json"
         if os.path.exists(cache_file):
+            if not os.isatty(0):
+                return None, False
             choice = single_select_menu(["Yes", "Resume", "No"], f"The agent '{agent_name}' cache file exists, do you want to use it?")
             if choice == "Yes":
                 with open(cache_file, "r", encoding="utf-8") as f:
@@ -96,6 +98,8 @@ class ToolModule:
         tool_name = tool_name
         cache_file = f"{self.cache_path}/tools/{tool_name}.json"
         if os.path.exists(cache_file):
+            if not os.isatty(0):
+                return None
             choice = single_select_menu(["Yes", "No"], f"The tool '{tool_name}' cache file exists, do you want to use it?")
             if choice == "Yes":
                 with open(cache_file, "r", encoding="utf-8") as f:

@@ -130,6 +130,7 @@ def process_terminal_response(func):
             return f"Error in `{func.__name__}`: {result}"
     
     return wrapper
+
 @register_tool("read_file")
 @process_terminal_response
 def read_file(file_path: str, env: DockerEnv) -> str:
@@ -141,10 +142,44 @@ def read_file(file_path: str, env: DockerEnv) -> str:
         A string representation of the contents of the file.
     """
     try:
+        # Special handling for PDFs to avoid binary/encoding errors; extract text via PyPDF.
+        if file_path.lower().endswith(".pdf"):
+            py_cmd = f"""
+import sys
+from pathlib import Path
+try:
+    from pypdf import PdfReader
+except Exception as e:
+    print("PyPDF not available:", e)
+    sys.exit(1)
+path = Path("{file_path}")
+if not path.exists():
+    print("File not found:", path)
+    sys.exit(1)
+text = []
+try:
+    reader = PdfReader(str(path))
+    for i, page in enumerate(reader.pages):
+        if i >= 5:  # limit to first 5 pages to keep output concise
+            break
+        try:
+            text.append(page.extract_text() or "")
+        except Exception:
+            continue
+    out = "\\n\\n".join(text)
+    print(out[:4000])
+except Exception as e:
+    print("Failed to extract PDF text:", e)
+    sys.exit(1)
+"""
+            command = f"python - <<'PY'\n{py_cmd}\nPY"
+            response = env.run_command(command)
+            if response["status"] != 0:
+                return f"Error reading PDF: {response['result']}"
+            return response
+        # Default: text read
         command = f"cat {file_path}"
-        response = env.run_command(command) # status, result
-        # res_output = truncate_by_tokens(env, response['result'], 10000)
-        # return f"Exit code: {response['status']} \nOutput: \n{res_output}"
+        response = env.run_command(command)
         return response
     except FileNotFoundError:
         return f"Error in reading file: {file_path}"

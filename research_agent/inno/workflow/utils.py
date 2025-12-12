@@ -85,14 +85,3 @@ You should complete the workflow graph in the following way:
     }
     response = completion(model='gpt-4o-2024-08-06', messages=messages, response_format=response_format)
     return json.loads(response.choices[0].message.content)
-if __name__ == '__main__':
-    import os
-    os.environ['OPENAI_API_KEY'] = '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'
-    with open('/Users/tangjiabin/Documents/reasoning/metachain/chaingraph/common_ragflow-2024.json', 'r') as f:
-        fschema = json.load(f)
-    graph_dict = transfer_fschema_to_dict(fschema)
-    g = Graph.from_dict(graph_dict)
-    g.visualize()
-    description = "The workflow is a common workflow for the RAG system. It consists of Query Rewriter Agent, Retriever Agent, Reranker Agent, and Generator Agent. The input of the workflow is a user query, the path of target document is given by the user. Retriever Agent have `save_to_vectordb` tool to save the document to the vector database, and have `retrieve_from_vectordb` tool to retrieve the document from the vector database. Reranker Agent have `rerank` tool to rerank the retrieved documents."
-    graph_dict = complete_workflow(graph_dict, description)
-    print(json.dumps(graph_dict, indent=4))

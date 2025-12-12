@@ -30,3 +30,20 @@ research_agent/.env
 research_agent/*_tmp/*
 
 .env
+
+# Trimmed artifacts to keep the repo lightweight
+examples/
+
+# Large binary artifacts (recursive)
+**/*.pkl
+**/*.npz
+**/*.pt
+**/*.pth
+
+# Benchmark evaluation results and datasets
+benchmark/process/dataset_candidate/reasoning/math_reasoning/evaluation_results/
+
+# Runtime directories (agent workspaces, caches)
+workplace_paper/
+paper_db/
+cache/

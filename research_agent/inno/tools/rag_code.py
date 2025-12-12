@@ -1,5 +1,5 @@
 from research_agent.inno.memory.code_memory import CodeMemory, CodeReranker
-import os
+from research_agent.constant import get_llm_api_key
 from research_agent.inno.environment.docker_env import DockerEnv
 from research_agent.inno.io_utils import compress_folder, get_file_md5
 from research_agent.inno.registry import register_tool
@@ -13,7 +13,7 @@ def code_rag(query_text: str, env: DockerEnv) -> str:
     Returns:
         A string representation of the reranked results.
     """
-    code_memory = CodeMemory(project_path = './code_db', platform='OpenAI', api_key=os.getenv("OPENAI_API_KEY"),embedding_model='text-embedding-3-small')
+    code_memory = CodeMemory(project_path = './code_db', platform='OpenAI', api_key=get_llm_api_key())
     code_reranker = CodeReranker(model="gpt-4o-2024-08-06")
     code_path = f"{env.local_workplace}/metachain"
     compress_folder(code_path, f"{env.local_workplace}/", "metachain.zip")
@@ -28,4 +28,3 @@ def code_rag(query_text: str, env: DockerEnv) -> str:
     return reranked_results
     
     
-

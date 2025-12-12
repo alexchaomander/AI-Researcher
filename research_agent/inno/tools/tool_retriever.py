@@ -1,5 +1,5 @@
 from research_agent.inno.memory.tool_memory import ToolMemory, ToolReranker
-import os
+from research_agent.constant import get_llm_api_key
 from research_agent.inno.io_utils import get_file_md5
 import pandas as pd
 from research_agent.inno.registry import register_tool
@@ -13,7 +13,7 @@ def get_api_doc(query_text: str) -> str:
     Returns:
         A string representation of the reranked results.
     """
-    tool_memory = ToolMemory(project_path = './code_db', db_name = ".tool_table", platform='OpenAI', api_key=os.getenv("OPENAI_API_KEY"), embedding_model='text-embedding-3-small')
+    tool_memory = ToolMemory(project_path = './code_db', db_name = ".tool_table", platform='OpenAI', api_key=get_llm_api_key())
     tool_reranker = ToolReranker(model="gpt-4o-2024-08-06")
     tool_path = "./tool_docs.csv"
     code_id = get_file_md5(tool_path)

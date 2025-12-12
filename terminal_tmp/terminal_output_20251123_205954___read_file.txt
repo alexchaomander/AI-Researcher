@@ -1,0 +1,56 @@
+Li et al. Vicinagearth             (2024) 1:9  
+https://doi.org/10.1007/s44336-024-00009-2
+REVIEW Open Access
+© The Author(s) 2024. Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which 
+permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as you give appropriate credit to the 
+original author(s) and the source, provide a link to the Creative Commons licence, and indicate if changes were made. The images or 
+other third party material in this article are included in the article’s Creative Commons licence, unless indicated otherwise in a credit line 
+to the material. If material is not included in the article’s Creative Commons licence and your intended use is not permitted by statutory 
+regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this 
+licence, visit http://creativecommons.org/licenses/by/4.0/.
+Vicinagearth
+A survey on LLM-based multi-agent systems: 
+workflow, infrastructure, and challenges
+Xinyi Li1, Sai Wang1, Siqi Zeng1, Yu Wu1* and Yi Yang2 
+Abstract 
+The pursuit of more intelligent and credible autonomous systems, akin to human society, has been a long-standing 
+endeavor for humans. Leveraging the exceptional reasoning and planning capabilities of large language models 
+(LLMs), LLM-based agents have been proposed and have achieved remarkable success across a wide array of tasks. 
+Notably, LLM-based multi-agent systems (MAS) are considered a promising pathway towards realizing general artifi-
+cial intelligence that is equivalent to or surpasses human-level intelligence. In this paper, we present a comprehensive 
+survey of these studies, offering a systematic review of LLM-based MAS. Adhering to the workflow of LLM-based 
+multi-agent systems, we synthesize a general structure encompassing five key components: profile, perception, self-
+action, mutual interaction, and evolution. This unified framework encapsulates much of the previous work in the field. 
+Furthermore, we illuminate the extensive applications of LLM-based MAS in two principal areas: problem-solving 
+and world simulation. Finally, we discuss in detail several contemporary challenges and provide insights into potential 
+future directions in this domain.
+Keywords Large language model, Multi-agent system, Systematic workflow
+1 Introduction
+Enhancing the reliability and intelligence of autonomous 
+intelligent systems has long been regarded as a highly 
+promising research avenue. With the advent of the agent 
+concept, which refers to an entity capable of perceiving 
+its environment and taking action, agent-based intel -
+ligent systems have garnered considerable attention in 
+recent years. Historically, RL-based intelligent systems 
+have dominated this field, wherein agents are typically 
+assigned to perform simple, well-defined actions or tasks 
+with constraint interaction with their environment. How-
+ever, this approach has inherent limitations in terms of 
+adaptability and complexity, prompting the exploration 
+of more advanced and interactive agent-based systems.
+Large language models (LLMs) have demonstrated 
+exceptional potential in reasoning and planning, aligning 
+precisely with the human expectations for LLM-based 
+agents capable of perceiving their surroundings, mak -
+ing decisions, and taking actions within an interactive 
+environment. Motivated by this, LLM-based agents have 
+made significant strides in interacting with complex envi-
+ronments and solving intricate tasks across a wide range 
+of applications [1], akin to human life in society. Notably, 
+LLM-based multi-agent systems have been proposed as 
+a pivotal pathway to harness collective intelligence while 
+preserving the specialized characteristics of individual 
+agents, thereby advancing toward more sophisticated 
+autonomous intelligent systems. Specifically, multiple 
+specialized agents, endowed with distinct identiti

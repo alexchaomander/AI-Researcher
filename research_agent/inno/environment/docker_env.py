@@ -1,7 +1,10 @@
 import os
 import os.path as osp
 import subprocess
-from constant import BASE_IMAGES, AI_USER, GITHUB_AI_TOKEN, GPUS, PLATFORM
+try:
+    from constant import BASE_IMAGES, AI_USER, GITHUB_AI_TOKEN, GPUS, PLATFORM, USE_DOCKER
+except ImportError:
+    from research_agent.constant import BASE_IMAGES, AI_USER, GITHUB_AI_TOKEN, GPUS, PLATFORM, USE_DOCKER
 import time
 import socket
 import json
@@ -22,6 +25,7 @@ class DockerConfig:
     git_clone: bool = field(default=False)
     setup_package: Optional[str] = field(default=None)
     local_root: str = field(default=os.getcwd())
+    use_docker: bool = field(default=USE_DOCKER)
     
 
 class DockerEnv:
@@ -30,6 +34,7 @@ class DockerEnv:
             config = DockerConfig(**config)
         self.workplace_name = config.workplace_name
         self.local_workplace = osp.join(config.local_root, config.workplace_name)
+        self.use_docker = config.use_docker
         self.docker_workplace = f"/{config.workplace_name}"
         self.container_name = config.container_name
         self.test_pull_name = config.test_pull_name
@@ -39,10 +44,12 @@ class DockerEnv:
         self.communication_port = config.communication_port
         
     def init_container(self):
+        os.makedirs(self.local_workplace, exist_ok=True)
+        # In local mode, skip Docker entirely.
+        if not self.use_docker:
+            return
         container_check_command = ["docker", "ps", "-a", "--filter", f"name={self.container_name}", "--format", "{{.Names}}"]
         existing_container = subprocess.run(container_check_command, capture_output=True, text=True)
-        os.makedirs(self.local_workplace, exist_ok=True)
-        
         if self.setup_package is not None:
             unzip_command = ["tar", "-xzvf", f"packages/{self.setup_package}.tar.gz", "-C", self.local_workplace]
             subprocess.run(unzip_command)
@@ -109,25 +116,13 @@ class DockerEnv:
                 capture_output=True,
                 text=True
             )
-            print("result.returncode", result.returncode)
-            print("result.stdout", result.stdout)
-            
             if result.returncode == 0 and "true" in result.stdout.lower():
-                # 额外检查 tcp_server 是否运行
-                try:
-                    port_info = check_container_ports(self.container_name)
-                    assert port_info and (port_info[0] == port_info[1])
-                    available_port = port_info[0]
-                    self.communication_port = available_port
-                    result = self.run_command('ps aux')
-                    print("result", result)
-                    if "tcp_server.py" in result['result']:
+                # check tcp_server port readiness
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(1.0)
+                    if sock.connect_ex(("localhost", self.communication_port)) == 0:
                         return True
-                except Exception as e:
-                    print(f"Failed to check container ports: {e}")
-                
             time.sleep(1)
-            
         raise TimeoutError(f"Container {self.container_name} failed to start within {timeout} seconds")
     def stop_container(self):
         stop_command = ["docker", "stop", self.container_name]
@@ -147,6 +142,33 @@ class DockerEnv:
         Returns:
             dict: the complete JSON result returned by the docker container
         """
+        if not self.use_docker:
+            try:
+                # Normalize docker path to local path for execution.
+                normalized_cmd = command.replace(self.docker_workplace, self.local_workplace)
+                process = subprocess.Popen(
+                    normalized_cmd,
+                    shell=True,
+                    cwd=self.local_workplace,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                output_lines = []
+                if process.stdout:
+                    for line in process.stdout:
+                        output_lines.append(line)
+                        if stream_callback:
+                            stream_callback(line)
+                process.wait()
+                return {
+                    "status": process.returncode,
+                    "result": "".join(output_lines).strip(),
+                }
+            except Exception as e:
+                return {"status": -1, "result": str(e)}
+
         hostname = 'localhost'
         port = self.communication_port
         buffer_size = 4096

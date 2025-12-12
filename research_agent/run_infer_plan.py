@@ -12,7 +12,7 @@ from research_agent.inno.tools.arxiv_source import download_arxiv_source_by_titl
 from research_agent.inno import MetaChain
 from tqdm import tqdm
 from pydantic import BaseModel, Field
-from research_agent.constant import DOCKER_WORKPLACE_NAME, COMPLETION_MODEL, CHEEP_MODEL
+from research_agent.constant import DOCKER_WORKPLACE_NAME, COMPLETION_MODEL, CHEEP_MODEL, USE_BROWSER_ENV
 from research_agent.inno.util import single_select_menu
 from research_agent.inno.environment.docker_env import DockerEnv, DockerConfig
 from research_agent.inno.environment.browser_env import BrowserEnv
@@ -475,7 +475,7 @@ Note that you should fully utilize the existing code in the directory `/{workpla
 
 #         print(refine_res)
         
-def main(args, ideas, references):
+def main(args, ideas=None, references=None):
     """
     MAX_ATTEMPTS
 
@@ -503,9 +503,14 @@ def main(args, ideas, references):
     # load the eval instance
     with open(args.instance_path, "r", encoding="utf-8") as f:
         eval_instance = json.load(f)
+    if ideas is None:
+        ideas = eval_instance.get(args.task_level, "")
+    if references is None:
+        references = warp_source_papers(eval_instance.get("source_papers", []))
     instance_id = eval_instance["instance_id"]
-    local_root = os.path.join(os.getcwd(),"workplace_paper" , f"task_{instance_id}" + "_" + COMPLETION_MODEL.replace("/", "__"),  args.workplace_name)
-    container_name = args.container_name + "_" + instance_id + "_" + COMPLETION_MODEL.replace("/", "__")
+    model_safe = COMPLETION_MODEL.replace("/", "__").replace(":", "__")
+    local_root = os.path.join(os.getcwd(),"workplace_paper" , f"task_{instance_id}" + "_" + model_safe,  args.workplace_name)
+    container_name = args.container_name + "_" + instance_id + "_" + model_safe
     os.makedirs(local_root, exist_ok=True)
     env_config = DockerConfig(container_name = container_name, 
                               workplace_name = args.workplace_name, 
@@ -516,7 +521,7 @@ def main(args, ideas, references):
     code_env = DockerEnv(env_config)
     code_env.init_container()
     setup_dataset(args.category, code_env.local_workplace)
-    web_env = BrowserEnv(browsergym_eval_env = None, local_root=env_config.local_root, workplace_name=env_config.workplace_name)
+    web_env = BrowserEnv(browsergym_eval_env = None, local_root=env_config.local_root, workplace_name=env_config.workplace_name) if USE_BROWSER_ENV else None
     file_env = RequestsMarkdownBrowser(viewport_size=1024 * 4, local_root=env_config.local_root, workplace_name=env_config.workplace_name, downloads_folder=os.path.join(env_config.local_root, env_config.workplace_name, "downloads"))
     flow = InnoFlow(cache_path="cache_" + instance_id + "_" + COMPLETION_MODEL.replace("/", "__"), log_path="log_" + instance_id, code_env=code_env, web_env=web_env, file_env=file_env, model=args.model)
     # ml_result = await flow(instance_path=instance_path)
