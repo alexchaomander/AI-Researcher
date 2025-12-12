@@ -1,16 +1,45 @@
+#!/bin/bash
+# Level 2: Reference-Based Ideation Task
+# Submit reference papers and let the system generate novel ideas
+
+set -e
 
 current_dir=$(dirname "$(readlink -f "$0")")
-cd $current_dir
-export DOCKER_WORKPLACE_NAME=workplace_paper
+cd "$current_dir"
 
-export BASE_IMAGES=tjbtech1/paperagent:latest
+# Load environment variables from .env if it exists
+if [ -f "../.env" ]; then
+    set -a
+    source "../.env"
+    set +a
+fi
 
-export COMPLETION_MODEL=claude-3-5-sonnet-20241022
-export CHEEP_MODEL=claude-3-5-haiku-20241022
+# Set defaults if not provided in .env
+export DOCKER_WORKPLACE_NAME="${DOCKER_WORKPLACE_NAME:-workplace_paper}"
+export BASE_IMAGES="${BASE_IMAGES:-ai-researcher-sandbox:latest}"
+export COMPLETION_MODEL="${COMPLETION_MODEL:-openrouter/google/gemini-2.5-pro-preview-05-20}"
+export CHEEP_MODEL="${CHEEP_MODEL:-openrouter/google/gemini-2.5-pro-preview-05-20}"
+export GPUS="${GPUS:-\"device=0\"}"
 
-category=vq
-instance_id=one_layer_vq
-export GPUS='"device=0,1"'
+# Task configuration - override these as needed
+category="${CATEGORY:-vq}"
+instance_id="${INSTANCE_ID:-one_layer_vq}"
+port="${PORT:-12372}"
+max_iter="${MAX_ITER_TIMES:-0}"
 
-python run_infer_idea.py --instance_path ../benchmark/final/${category}/${instance_id}.json --container_name paper_eval --model $COMPLETION_MODEL --workplace_name workplace --cache_path cache --port 12372 --max_iter_times 0 --category ${category}
+echo "Running Level 2 (Reference-Based Ideation) task:"
+echo "  Category: $category"
+echo "  Instance: $instance_id"
+echo "  Model: $COMPLETION_MODEL"
+echo "  Docker Image: $BASE_IMAGES"
+echo ""
 
+python run_infer_idea.py \
+    --instance_path "../benchmark/final/${category}/${instance_id}.json" \
+    --container_name paper_eval \
+    --model "$COMPLETION_MODEL" \
+    --workplace_name workplace \
+    --cache_path cache \
+    --port "$port" \
+    --max_iter_times "$max_iter" \
+    --category "${category}"

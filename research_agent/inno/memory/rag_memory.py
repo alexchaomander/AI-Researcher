@@ -37,15 +37,19 @@ class Memory:
                 self.collection_name,
             ) 
         chosen_model = embedding_model or EMBEDDING_MODEL
-        provider = platform
         ollama_base = os.getenv("OLLAMA_BASE_URL")
+
+        # Determine provider based on configuration
+        # Priority: Ollama (local) > OpenAI/OpenRouter (API) > SentenceTransformer (fallback)
         if ollama_base:
             provider = "Ollama"
-        # use the OpenAI embedding function if the openai section is set in the configuration.
-        if provider == 'OpenAI':
-            openai_client = OpenAI(api_key=api_key or get_llm_api_key(), base_url=API_BASE_URL)
-            self.embedder = lambda x: [i.embedding for i in openai_client.embeddings.create(input=x, model=chosen_model).data]
-        elif provider == 'Ollama':
+        elif get_llm_api_key():
+            provider = "OpenAI"  # Works for OpenAI and OpenRouter via API_BASE_URL
+        else:
+            provider = platform
+
+        # Configure embedder based on provider
+        if provider == 'Ollama':
             ollama_url = ollama_base.rstrip('/') + "/api/embeddings"
             def _ollama_embed(texts: List[str]):
                 embeddings = []
@@ -56,8 +60,12 @@ class Memory:
                     embeddings.append(data["embedding"])
                 return embeddings
             self.embedder = _ollama_embed
+        elif provider == 'OpenAI':
+            # Works for both OpenAI and OpenRouter (via API_BASE_URL)
+            openai_client = OpenAI(api_key=api_key or get_llm_api_key(), base_url=API_BASE_URL)
+            self.embedder = lambda x: [i.embedding for i in openai_client.embeddings.create(input=x, model=chosen_model).data]
         else:
-            # self.embedder = embedding_functions.DefaultEmbeddingFunction()
+            # Fallback to local SentenceTransformer embeddings
             self.embedder = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
 
     def add_query(
