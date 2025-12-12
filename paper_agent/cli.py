@@ -3,11 +3,24 @@ Paper Agent CLI - Generate academic papers from research results.
 """
 import click
 import asyncio
-import os
-import sys
+from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Project root directory
+PROJECT_ROOT = Path(__file__).parent.parent
+PAPER_AGENT_DIR = Path(__file__).parent
+
+# Available research fields (shared constant)
+RESEARCH_FIELDS = ['vq', 'gnn', 'rec', 'diffu_flow', 'reasoning']
+
+# Section composer mapping
+SECTION_COMPOSERS = {
+    'abstract': ('paper_agent.abstract_composing', 'abstract_composing'),
+    'introduction': ('paper_agent.introduction_composing', 'introduction_composing'),
+    'related_work': ('paper_agent.related_work_composing_using_template', 'related_work_composing'),
+    'methodology': ('paper_agent.methodology_composing_using_template', 'methodology_composing'),
+    'experiments': ('paper_agent.experiments_composing', 'experiments_composing'),
+    'conclusion': ('paper_agent.conclusion_composing', 'conclusion_composing'),
+}
 
 
 @click.group()
@@ -18,7 +31,7 @@ def cli():
 
 @cli.command()
 @click.option('--research-field', '-f', required=True,
-              type=click.Choice(['vq', 'gnn', 'rec', 'diffu_flow', 'reasoning']),
+              type=click.Choice(RESEARCH_FIELDS),
               help='Research field/domain')
 @click.option('--instance-id', '-i', required=True,
               help='Instance ID for the research task')
@@ -30,10 +43,6 @@ def generate(research_field: str, instance_id: str, output_dir: str):
 
     click.echo(f"Generating paper for {research_field}/{instance_id}...")
 
-    # Change to paper_agent directory for relative paths
-    paper_agent_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(paper_agent_dir)
-
     asyncio.run(writing(research_field, instance_id))
 
     output_path = output_dir or f"{research_field}/target_sections/{instance_id}"
@@ -42,40 +51,24 @@ def generate(research_field: str, instance_id: str, output_dir: str):
 
 @cli.command()
 @click.option('--research-field', '-f', required=True,
-              type=click.Choice(['vq', 'gnn', 'rec', 'diffu_flow', 'reasoning']),
+              type=click.Choice(RESEARCH_FIELDS),
               help='Research field/domain')
 @click.option('--instance-id', '-i', required=True,
               help='Instance ID for the research task')
 @click.option('--section', '-s', required=True,
-              type=click.Choice(['abstract', 'introduction', 'related_work',
-                               'methodology', 'experiments', 'conclusion']),
+              type=click.Choice(list(SECTION_COMPOSERS.keys())),
               help='Section to generate')
 def section(research_field: str, instance_id: str, section: str):
     """Generate a specific section of the paper."""
+    import importlib
+
     click.echo(f"Generating {section} for {research_field}/{instance_id}...")
 
-    paper_agent_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(paper_agent_dir)
+    module_name, func_name = SECTION_COMPOSERS[section]
+    module = importlib.import_module(module_name)
+    composer_func = getattr(module, func_name)
 
-    # Import and run the appropriate section composer
-    if section == 'abstract':
-        from paper_agent.abstract_composing import abstract_composing
-        asyncio.run(abstract_composing(research_field, instance_id))
-    elif section == 'introduction':
-        from paper_agent.introduction_composing import introduction_composing
-        asyncio.run(introduction_composing(research_field, instance_id))
-    elif section == 'related_work':
-        from paper_agent.related_work_composing_using_template import related_work_composing
-        asyncio.run(related_work_composing(research_field, instance_id))
-    elif section == 'methodology':
-        from paper_agent.methodology_composing_using_template import methodology_composing
-        asyncio.run(methodology_composing(research_field, instance_id))
-    elif section == 'experiments':
-        from paper_agent.experiments_composing import experiments_composing
-        asyncio.run(experiments_composing(research_field, instance_id))
-    elif section == 'conclusion':
-        from paper_agent.conclusion_composing import conclusion_composing
-        asyncio.run(conclusion_composing(research_field, instance_id))
+    asyncio.run(composer_func(research_field, instance_id))
 
     click.echo(f"Section {section} generated successfully.")
 
@@ -83,13 +76,10 @@ def section(research_field: str, instance_id: str, section: str):
 @cli.command()
 def list_fields():
     """List available research fields and their templates."""
-    paper_agent_dir = os.path.dirname(os.path.abspath(__file__))
-
-    fields = ['vq', 'gnn', 'rec', 'diffu_flow']
     click.echo("Available research fields:")
-    for field in fields:
-        field_path = os.path.join(paper_agent_dir, field)
-        if os.path.exists(field_path):
+    for field in RESEARCH_FIELDS:
+        field_path = PAPER_AGENT_DIR / field
+        if field_path.exists():
             click.echo(f"  - {field}")
         else:
             click.echo(f"  - {field} (templates not found)")

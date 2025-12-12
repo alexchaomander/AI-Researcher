@@ -2,16 +2,19 @@
 AI-Researcher CLI - Main entry point for autonomous research tasks.
 """
 import click
-import os
 import sys
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
 
 # Load environment variables from .env
 from dotenv import load_dotenv
-env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+
+PROJECT_ROOT = Path(__file__).parent.parent
+env_path = PROJECT_ROOT / '.env'
 load_dotenv(env_path)
+
+# Available research categories
+RESEARCH_CATEGORIES = ['vq', 'gnn', 'reasoning', 'recommendation', 'diffu_flow']
+BENCHMARK_DIR = PROJECT_ROOT / 'benchmark' / 'final'
 
 
 @click.group()
@@ -27,7 +30,7 @@ def cli():
 
 @cli.command()
 @click.option('--category', '-c', required=True,
-              type=click.Choice(['vq', 'gnn', 'reasoning', 'recommendation', 'diffu_flow']),
+              type=click.Choice(RESEARCH_CATEGORIES),
               help='Research category')
 @click.option('--instance-id', '-i', required=True,
               help='Instance ID of the benchmark task')
@@ -49,17 +52,15 @@ def run(category: str, instance_id: str, model: str, task_level: str,
     Example:
         ai-researcher run -c vq -i one_layer_vq -l task1
     """
+    import argparse
+    import os
     from research_agent.constant import COMPLETION_MODEL
 
     model = model or COMPLETION_MODEL
-    instance_path = f"benchmark/final/{category}/{instance_id}.json"
+    instance_path = BENCHMARK_DIR / category / f'{instance_id}.json'
 
     # Check if instance exists
-    full_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        instance_path
-    )
-    if not os.path.exists(full_path):
+    if not instance_path.exists():
         click.echo(f"Error: Task not found: {instance_path}")
         click.echo(f"Run 'ai-researcher list -c {category}' to see available tasks.")
         sys.exit(1)
@@ -75,60 +76,45 @@ def run(category: str, instance_id: str, model: str, task_level: str,
     if no_docker:
         os.environ['USE_DOCKER'] = 'false'
 
-    # Change to research_agent directory
-    research_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(research_dir)
+    # Build args namespace to match expected signature
+    args = argparse.Namespace(
+        instance_path=str(instance_path),
+        container_name='ai_researcher',
+        task_level=task_level,
+        model=model,
+        workplace_name='workplace',
+        cache_path='cache',
+        port=port,
+        max_iter_times=max_iter,
+        category=category
+    )
 
     if task_level == 'task1':
         from research_agent.run_infer_plan import main
-        main(
-            instance_path=f"../{instance_path}",
-            container_name='ai_researcher',
-            task_level='task1',
-            model=model,
-            workplace_name='workplace',
-            cache_path='cache',
-            port=port,
-            max_iter_times=max_iter,
-            category=category
-        )
+        main(args)
     else:
         from research_agent.run_infer_idea import main
-        main(
-            instance_path=f"../{instance_path}",
-            container_name='ai_researcher',
-            model=model,
-            workplace_name='workplace',
-            cache_path='cache',
-            port=port,
-            max_iter_times=max_iter,
-            category=category
-        )
+        main(args)
 
 
 @cli.command()
 @click.option('--category', '-c', default=None,
-              type=click.Choice(['vq', 'gnn', 'reasoning', 'recommendation', 'diffu_flow']),
+              type=click.Choice(RESEARCH_CATEGORIES),
               help='Filter by category')
 def list(category: str):
     """List available benchmark tasks."""
-    benchmark_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'benchmark', 'final'
-    )
-
-    if not os.path.exists(benchmark_dir):
+    if not BENCHMARK_DIR.exists():
         click.echo("Benchmark directory not found.")
         return
 
-    categories = [category] if category else os.listdir(benchmark_dir)
+    categories = [category] if category else [d.name for d in BENCHMARK_DIR.iterdir() if d.is_dir()]
 
     for cat in categories:
-        cat_path = os.path.join(benchmark_dir, cat)
-        if not os.path.isdir(cat_path):
+        cat_path = BENCHMARK_DIR / cat
+        if not cat_path.is_dir():
             continue
 
-        tasks = [f[:-5] for f in os.listdir(cat_path) if f.endswith('.json')]
+        tasks = [f.stem for f in cat_path.glob('*.json')]
         click.echo(f"\n{cat}/ ({len(tasks)} tasks)")
         for task in sorted(tasks):
             click.echo(f"  - {task}")
@@ -141,6 +127,7 @@ def config():
         COMPLETION_MODEL, CHEEP_MODEL, EMBEDDING_MODEL,
         API_BASE_URL, BASE_IMAGES, GPUS
     )
+    import os
 
     click.echo("Current AI-Researcher Configuration:")
     click.echo(f"  Completion Model: {COMPLETION_MODEL}")
@@ -162,14 +149,15 @@ def config():
 def doctor():
     """Check system requirements and configuration."""
     import shutil
+    import os
 
     click.echo("AI-Researcher System Check")
     click.echo("=" * 40)
 
     # Python version
-    py_version = sys.version.split()[0]
-    py_ok = py_version.startswith('3.11') or py_version.startswith('3.12') or py_version.startswith('3.13')
-    click.echo(f"Python: {py_version} {'OK' if py_ok else 'WARNING (3.11 recommended)'}")
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    py_ok = sys.version_info >= (3, 11)
+    click.echo(f"Python: {py_version} {'OK' if py_ok else 'WARNING (3.11+ recommended)'}")
 
     # Docker
     docker = shutil.which('docker')
@@ -188,7 +176,7 @@ def doctor():
         try:
             resp = requests.get(f"{ollama_url}/api/version", timeout=2)
             click.echo(f"Ollama: running (v{resp.json().get('version', 'unknown')})")
-        except:
+        except requests.exceptions.RequestException:
             click.echo(f"Ollama: configured but not responding at {ollama_url}")
     else:
         click.echo("Ollama: not configured")

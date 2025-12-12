@@ -43,10 +43,10 @@ class Memory:
         # Priority: Ollama (local) > OpenAI/OpenRouter (API) > SentenceTransformer (fallback)
         if ollama_base:
             provider = "Ollama"
-        elif get_llm_api_key():
+        elif api_key or get_llm_api_key():
             provider = "OpenAI"  # Works for OpenAI and OpenRouter via API_BASE_URL
         else:
-            provider = platform
+            provider = "SentenceTransformer"
 
         # Configure embedder based on provider
         if provider == 'Ollama':
