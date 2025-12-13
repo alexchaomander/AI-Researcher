@@ -103,7 +103,7 @@ class InnoFlow(FlowModule):
         self.load_ins = ToolModule(load_instance, cache_path)
         self.git_search = ToolModule(github_search, cache_path)
         self.prepare_agent = AgentModule(get_prepare_agent(model=CHEEP_MODEL, code_env=code_env), self.client, cache_path)
-        self.download_papaer = ToolModule(download_arxiv_source_by_title, cache_path)
+        self.download_paper = ToolModule(download_arxiv_source_by_title, cache_path)
         self.coding_plan_agent = AgentModule(get_coding_plan_agent(model=CHEEP_MODEL, code_env=code_env), self.client, cache_path)
         self.ml_agent = AgentModule(get_ml_agent(model=COMPLETION_MODEL, code_env=code_env), self.client, cache_path)
         self.judge_agent = AgentModule(get_judge_agent(model=CHEEP_MODEL, code_env=code_env, web_env=web_env, file_env=file_env), self.client, cache_path)
@@ -152,7 +152,7 @@ Your task is to choose at least 5 repositories as the reference codebases. Note 
         prepare_res = prepare_messages[-1]["content"]
         prepare_dict = extract_json_from_output(prepare_res)
         paper_list = prepare_dict["reference_papers"]
-        download_res = self.download_papaer({"paper_list": paper_list, "local_root": local_root, "workplace_name": workplace_name})
+        download_res = self.download_paper({"paper_list": paper_list, "local_root": local_root, "workplace_name": workplace_name})
 
         
         idea_query = f"""\

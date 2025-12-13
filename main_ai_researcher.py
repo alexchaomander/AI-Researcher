@@ -33,22 +33,15 @@ def get_args_paper():
     return args
 
 def main_ai_researcher(input, reference, mode):
-    # if main_autoagent.mode is None:
-    #     main_autoagent.mode = mode
-        
-    # if main_autoagent.mode != mode:
-    #     model = COMPLETION_MODEL
-    #     main_autoagent.mode = mode
-    #     global_state.INIT_FLAG = False
     load_dotenv()
-    category = os.getenv("CATEGORY")
-    instance_id = os.getenv("INSTANCE_ID")
-    task_level = os.getenv("TASK_LEVEL")
-    container_name = os.getenv("CONTAINER_NAME")
-    workplace_name = os.getenv("WORKPLACE_NAME")
-    cache_path = os.getenv("CACHE_PATH")
-    port = int(os.getenv("PORT"))
-    max_iter_times = int(os.getenv("MAX_ITER_TIMES"))
+    category = os.getenv("CATEGORY", "vq")
+    instance_id = os.getenv("INSTANCE_ID", "one_layer_vq")
+    task_level = os.getenv("TASK_LEVEL", "task1")
+    container_name = os.getenv("CONTAINER_NAME", "ai_researcher")
+    workplace_name = os.getenv("WORKPLACE_NAME", "workplace")
+    cache_path = os.getenv("CACHE_PATH", "cache")
+    port = int(os.getenv("PORT", "12380"))
+    max_iter_times = int(os.getenv("MAX_ITER_TIMES", "0"))
 
     
     match mode:
