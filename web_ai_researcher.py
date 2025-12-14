@@ -17,25 +17,24 @@ import base64
 
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
-# If you want to use proxy, please uncomment the following lines
-os.environ['https_proxy'] = 'http://100.68.161.73:3128'
-os.environ['http_proxy'] = 'http://100.68.161.73:3128'
-os.environ['no_proxy'] = 'localhost,127.0.0.1,0.0.0.0'
+# Optional: Configure proxy if needed (uncomment and modify)
+# os.environ['https_proxy'] = 'http://your-proxy:port'
+# os.environ['http_proxy'] = 'http://your-proxy:port'
+# os.environ['no_proxy'] = 'localhost,127.0.0.1,0.0.0.0'
 
 def setup_path():
-    # logs_dir = os.path.join("casestudy_results", f'agent_{container_name}', 'logs')
-    logs_dir = os.path.join("casestudy_results", f'agent', 'logs')
+    """Set up case study results logging path."""
+    logs_dir = os.path.join("casestudy_results", "agent", "logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    # 生成日志文件名（使用当前日期）
+    # Generate log filename with current timestamp
     current_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     log_file = os.path.join(logs_dir, f"gradio_log_{current_date}.log")
     return log_file
 
 
-# 配置日志系统
 def setup_logging():
+    """Configure the logging system for the web application."""
     logs_dir = os.path.join(os.path.dirname(__file__), "logs")
     os.makedirs(logs_dir, exist_ok=True)
     current_date = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
@@ -44,6 +43,7 @@ def setup_logging():
 
     root_logger = logging.getLogger()
 
+    # Clear existing handlers to avoid duplicate logs
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
@@ -84,44 +84,41 @@ def return_paper_log_file():
     return PAPER_LOG
 
 def return_paper_log():
+    """Set up and return paper agent log file path."""
     logs_dir = os.path.join(os.path.dirname(__file__), "paper_agent", "paper_logs")
     os.makedirs(logs_dir, exist_ok=True)
 
-    # logs_dir = os.path.join("casestudy_results", f'agent_{container_name}', 'logs')
-    # os.makedirs(logs_dir, exist_ok=True)
-
-    # 生成日志文件名（使用当前日期）
-    # current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    # Generate log filename with current timestamp
     current_date = datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S")
     log_file = os.path.join(logs_dir, f"rotated_vq_{current_date}.log")
 
     global_state.LOG_PATH = log_file
 
-    # 配置根日志记录器（捕获所有日志）
+    # Configure root logger to capture all logs
     root_logger = logging.getLogger()
 
-    # 清除现有的处理器，避免重复日志
+    # Clear existing handlers to avoid duplicate logs
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
     root_logger.setLevel(logging.INFO)
 
-    # 创建文件处理器
+    # Create file handler
     file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
     file_handler.setLevel(logging.INFO)
 
-    # 创建控制台处理器
+    # Create console handler
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
 
-    # 创建格式化器
+    # Create formatter
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
 
-    # 添加处理器到根日志记录器
+    # Add handlers to root logger
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
@@ -132,8 +129,8 @@ def return_paper_log():
 
 
 def get_latest_log():
+    """Get a copy of the latest log file for download."""
     path2save = os.path.splitext(os.path.basename(LOG_FILE))[0]
-    # Read the current content of the log file
     try:
         with open(LOG_FILE, "r", encoding="utf-8") as f:
             content = f.read()
@@ -144,7 +141,7 @@ def get_latest_log():
             f.write(content)
         return temp_file
     except Exception as e:
-        print(f"Error reading log file: {e}")
+        logging.error(f"Error reading log file: {e}")
         return None
 
 
@@ -154,7 +151,7 @@ def get_base64_image(image_path):
     return f"data:image/png;base64,{encoded}"
 
 
-# 全局变量
+# Global variables for logging state
 LOG_FILE = None
 LOG_READ_FILE = None
 PAPER_LOG = None
@@ -162,8 +159,6 @@ category = os.getenv("CATEGORY")
 instance_id = os.getenv("INSTANCE_ID")
 
 PAPER_FILE = f'{category}/target_sections/{instance_id}/iclr2025_conference.pdf'
-# PAPER_FILE = './vq/target_sections/rotated_vq/iclr2025_conference.pdf'
-# PAPER_LOG = './paper_agent/paper_logs/rotated_vq.log'
 LOG_QUEUE: queue.Queue = queue.Queue()
 STOP_LOG_THREAD = threading.Event()
 CURRENT_PROCESS = None
@@ -171,12 +166,11 @@ STOP_REQUESTED = threading.Event()
 
 
 
-
-# 日志读取和更新函数
 def log_reader_thread(log_file):
+    """Background thread to read log file and push to queue."""
     try:
         with open(log_file, "r", encoding="utf-8") as f:
-            # 移动到文件末尾
+            # Seek to end of file
             f.seek(0, 2)
 
             while not STOP_LOG_THREAD.is_set():
@@ -457,7 +451,7 @@ MODULE_DESCRIPTIONS = {
     # "exit": "exit mode"
 }
 
-# 默认环境变量模板
+# Default environment variables template
 DEFAULT_ENV_TEMPLATE = """#===========================================
 # MODEL & API 
 # (See https://docs.camel-ai.org/key_modules/models.html#)
@@ -498,44 +492,44 @@ FIRECRAWL_API_KEY='Your_Key'
 
 
 def validate_input(question: str) -> bool:
-    """验证用户输入是否有效
+    """Validate user input.
 
     Args:
-        question: 用户问题
+        question: User question
 
     Returns:
-        bool: 输入是否有效
+        bool: Whether input is valid
     """
-    # 检查输入是否为空或只包含空格
+    # Check if input is empty or whitespace only
     if not question or question.strip() == "":
         return False
     return True
 
 
 def run_ai_researcher(question: str, reference: str, example_module: str) -> Tuple[str, str, str]:
+    """Run AI Researcher with the given inputs."""
     global CURRENT_PROCESS
 
-    # 验证输入
+    # Validate input
     if not validate_input(question):
         logging.warning("User submitted invalid input")
-        return ("Please enter a valid question", "0", "❌ Error: Invalid input question")
+        return ("Please enter a valid question", "0", "Error: Invalid input question")
 
     try:
-        # 确保环境变量已加载
+        # Ensure environment variables are loaded
         load_dotenv(find_dotenv(), override=True)
         logging.info(f"Processing question: '{question}', using module: {example_module}")
 
-        # 检查模块是否在MODULE_DESCRIPTIONS中
+        # Check if module is in MODULE_DESCRIPTIONS
         if example_module not in MODULE_DESCRIPTIONS:
             logging.error(f"User selected an unsupported module: {example_module}")
             return (
                 f"Selected module '{example_module}' is not supported",
                 "0",
-                "❌ Error: Unsupported module",
+                "Error: Unsupported module",
             )
 
- 
-        # 运行
+        # Run
         try:
             # logging.info("Runing AI Researcher...")
             # answer, chat_history, token_info = run_society(society)
@@ -578,12 +572,12 @@ def update_module_description(module_name: str) -> str:
     return MODULE_DESCRIPTIONS.get(module_name, "No description available")
 
 
-# 存储前端配置的环境变量
+# Store frontend-configured environment variables
 WEB_FRONTEND_ENV_VARS: dict[str, str] = {}
 
 
 def init_env_file():
-    """初始化.env文件如果不存在"""
+    """Initialize .env file if it doesn't exist."""
     dotenv_path = find_dotenv()
     if not dotenv_path:
         with open(".env", "w") as f:
@@ -593,15 +587,15 @@ def init_env_file():
 
 
 def load_env_vars():
-    """加载环境变量并返回字典格式
+    """Load environment variables and return as dictionary.
 
     Returns:
-        dict: 环境变量字典，每个值为一个包含值和来源的元组 (value, source)
+        dict: Environment variables dict, each value is a tuple (value, source)
     """
     dotenv_path = init_env_file()
     load_dotenv(dotenv_path, override=True)
 
-    # 从.env文件读取环境变量
+    # Read environment variables from .env file
     env_file_vars = {}
     with open(dotenv_path, "r") as f:
         for line in f:
@@ -611,46 +605,46 @@ def load_env_vars():
                     key, value = line.split("=", 1)
                     env_file_vars[key.strip()] = value.strip().strip("\"'")
 
-    # 从系统环境变量中获取
+    # Get system environment variables
     system_env_vars = {
         k: v
         for k, v in os.environ.items()
         if k not in env_file_vars and k not in WEB_FRONTEND_ENV_VARS
     }
 
-    # 合并环境变量，并标记来源
+    # Merge environment variables with source tracking
     env_vars = {}
 
-    # 添加系统环境变量（最低优先级）
+    # Add system env vars (lowest priority)
     for key, value in system_env_vars.items():
         env_vars[key] = (value, "System")
 
-    # 添加.env文件环境变量（中等优先级）
+    # Add .env file vars (medium priority)
     for key, value in env_file_vars.items():
         env_vars[key] = (value, ".env file")
 
-    # 添加前端配置的环境变量（最高优先级）
+    # Add frontend-configured vars (highest priority)
     for key, value in WEB_FRONTEND_ENV_VARS.items():
         env_vars[key] = (value, "Frontend configuration")
-        # 确保操作系统环境变量也被更新
+        # Ensure OS environment is also updated
         os.environ[key] = value
 
     return env_vars
 
 
 def save_env_vars(env_vars):
-    """保存环境变量到.env文件
+    """Save environment variables to .env file.
 
     Args:
-        env_vars: 字典，键为环境变量名，值可以是字符串或(值,来源)元组
+        env_vars: Dictionary with env var names as keys, values can be strings or (value, source) tuples
     """
     try:
         dotenv_path = init_env_file()
 
-        # 保存每个环境变量
+        # Save each environment variable
         for key, value_data in env_vars.items():
-            if key and key.strip():  # 确保键不为空
-                # 处理值可能是元组的情况
+            if key and key.strip():  # Ensure key is not empty
+                # Handle value that may be a tuple
                 if isinstance(value_data, tuple):
                     value = value_data[0]
                 else:
@@ -658,11 +652,10 @@ def save_env_vars(env_vars):
 
                 set_key(dotenv_path, key.strip(), value.strip())
 
-        # 重新加载环境变量以确保生效
+        # Reload environment variables to ensure they take effect
         load_dotenv(dotenv_path, override=True)
         global_state.START_FLAG = False
         global_state.FIRST_MAIN = False
-        # autoagent_init(container_name, port, test_pull_name, git_clone, local_env, LOG_FILE)
 
         return True, "Environment variables have been successfully saved!"
     except Exception as e:
@@ -670,12 +663,12 @@ def save_env_vars(env_vars):
 
 
 def add_env_var(key, value, from_frontend=True):
-    """添加或更新单个环境变量
+    """Add or update a single environment variable.
 
     Args:
-        key: 环境变量名
-        value: 环境变量值
-        from_frontend: 是否来自前端配置，默认为True
+        key: Environment variable name
+        value: Environment variable value
+        from_frontend: Whether from frontend configuration (default: True)
     """
     try:
         if not key or not key.strip():
@@ -684,13 +677,13 @@ def add_env_var(key, value, from_frontend=True):
         key = key.strip()
         value = value.strip()
 
-        # 如果来自前端，则添加到前端环境变量字典
+        # If from frontend, add to frontend env vars dict
         if from_frontend:
             WEB_FRONTEND_ENV_VARS[key] = value
-            # 直接更新系统环境变量
+            # Update system environment directly
             os.environ[key] = value
 
-        # 同时更新.env文件
+        # Also update .env file
         dotenv_path = init_env_file()
         set_key(dotenv_path, key, value)
         load_dotenv(dotenv_path, override=True)
@@ -701,22 +694,22 @@ def add_env_var(key, value, from_frontend=True):
 
 
 def delete_env_var(key):
-    """删除环境变量"""
+    """Delete an environment variable."""
     try:
         if not key or not key.strip():
             return False, "Variable name cannot be empty"
 
         key = key.strip()
 
-        # 从.env文件中删除
+        # Remove from .env file
         dotenv_path = init_env_file()
         unset_key(dotenv_path, key)
 
-        # 从前端环境变量字典中删除
+        # Remove from frontend env vars dict
         if key in WEB_FRONTEND_ENV_VARS:
             del WEB_FRONTEND_ENV_VARS[key]
 
-        # 从当前进程环境中也删除
+        # Remove from current process environment
         if key in os.environ:
             del os.environ[key]
 
@@ -726,15 +719,15 @@ def delete_env_var(key):
 
 
 def is_api_related(key: str) -> bool:
-    """判断环境变量是否与API相关
+    """Check if an environment variable is API-related.
 
     Args:
-        key: 环境变量名
+        key: Environment variable name
 
     Returns:
-        bool: 是否与API相关
+        bool: Whether the variable is API-related
     """
-    # API相关的关键词
+    # API-related keywords
     api_keywords = [
         "api",
         "key",
@@ -760,18 +753,18 @@ def is_api_related(key: str) -> bool:
         "max_iter_times"
     ]
 
-    # 检查是否包含API相关关键词（不区分大小写）
+    # Check if key contains any API-related keyword (case insensitive)
     return any(keyword in key.lower() for keyword in api_keywords)
 
 
 def get_api_guide(key: str) -> str:
-    """根据环境变量名返回对应的API获取指南
+    """Get API guide URL for an environment variable.
 
     Args:
-        key: 环境变量名
+        key: Environment variable name
 
     Returns:
-        str: API获取指南链接或说明
+        str: API guide URL or empty string
     """
     key_lower = key.lower()
     if "openai" in key_lower:
@@ -793,18 +786,18 @@ def get_api_guide(key: str) -> str:
 
 
 def update_env_table():
-    """更新环境变量表格显示，只显示API相关的环境变量"""
+    """Update environment variable table, showing only API-related variables."""
     env_vars = load_env_vars()
-    # 过滤出API相关的环境变量
+    # Filter to API-related environment variables
     api_env_vars = {k: v for k, v in env_vars.items() if is_api_related(k)}
-    # 转换为列表格式，以符合Gradio Dataframe的要求
-    # 格式: [变量名, 变量值, 获取指南链接]
+    # Convert to list format for Gradio Dataframe
+    # Format: [variable_name, value, guide_link]
     result = []
     for k, v in api_env_vars.items():
         guide = get_api_guide(k)
-        # 如果有指南链接，创建一个可点击的链接
+        # Create clickable link if guide URL exists
         guide_link = (
-            f"<a href='{guide}' target='_blank' class='guide-link'>🔗 获取</a>"
+            f"<a href='{guide}' target='_blank' class='guide-link'>Get</a>"
             if guide
             else ""
         )
@@ -813,48 +806,48 @@ def update_env_table():
 
 
 def save_env_table_changes(data):
-    """保存环境变量表格的更改
+    """Save changes from environment variable table.
 
     Args:
-        data: Dataframe数据，可能是pandas DataFrame对象
+        data: Dataframe data, may be pandas DataFrame object
 
     Returns:
-        str: 操作状态信息，包含HTML格式的状态消息
+        str: Operation status message with HTML formatting
     """
     try:
         logging.info(
             f"Starting to process environment variable table data, type: {type(data)}"
         )
 
-        # 获取当前所有环境变量
+        # Get current environment variables
         current_env_vars = load_env_vars()
-        processed_keys = set()  # 记录已处理的键，用于检测删除的变量
+        processed_keys = set()  # Track processed keys to detect deletions
 
-        # 处理pandas DataFrame对象
+        # Handle pandas DataFrame object
         import pandas as pd
 
         if isinstance(data, pd.DataFrame):
-            # 获取列名信息
+            # Get column names
             columns = data.columns.tolist()
             logging.info(f"DataFrame column names: {columns}")
 
-            # 遍历DataFrame的每一行
+            # Iterate over DataFrame rows
             for index, row in data.iterrows():
-                # 使用列名访问数据
+                # Access data by column name
                 if len(columns) >= 3:
-                    # 获取变量名和值 (第0列是变量名，第1列是值)
+                    # Get variable name and value (col 0 = name, col 1 = value)
                     key = row[0] if isinstance(row, pd.Series) else row.iloc[0]
                     value = row[1] if isinstance(row, pd.Series) else row.iloc[1]
 
-                    # 检查是否为空行或已删除的变量
-                    if key and str(key).strip():  # 如果键名不为空，则添加或更新
+                    # Check if row is empty or deleted
+                    if key and str(key).strip():  # If key is not empty, add/update
                         logging.info(f"Processing environment variable: {key} = {value}")
                         add_env_var(key, str(value))
                         processed_keys.add(key)
-        # 处理其他格式
+        # Handle other formats
         elif isinstance(data, dict):
             logging.info(f"Dictionary format data keys: {list(data.keys())}")
-            # 如果是字典格式，尝试不同的键
+            # Try different keys for dict format
             if "data" in data:
                 rows = data["data"]
             elif "values" in data:
@@ -862,7 +855,7 @@ def save_env_table_changes(data):
             elif "value" in data:
                 rows = data["value"]
             else:
-                # 尝试直接使用字典作为行数据
+                # Try using dict directly as row data
                 rows = []
                 for key, value in data.items():
                     if key not in ["headers", "types", "columns"]:
@@ -876,7 +869,7 @@ def save_env_table_changes(data):
                             add_env_var(key, str(value))
                             processed_keys.add(key)
         elif isinstance(data, list):
-            # 列表格式
+            # List format
             for row in data:
                 if isinstance(row, list) and len(row) >= 2:
                     key, value = row[0], row[1]
@@ -885,13 +878,13 @@ def save_env_table_changes(data):
                         processed_keys.add(key)
         else:
             logging.error(f"Unknown data format: {type(data)}")
-            return f"❌ Save failed: Unknown data format {type(data)}"
+            return f"Save failed: Unknown data format {type(data)}"
 
-        # 处理删除的变量 - 检查当前环境变量中是否有未在表格中出现的变量
+        # Handle deleted variables - check for vars not in table
         api_related_keys = {k for k in current_env_vars.keys() if is_api_related(k)}
         keys_to_delete = api_related_keys - processed_keys
 
-        # 删除不在表格中的变量
+        # Delete variables not in table
         for key in keys_to_delete:
             logging.info(f"Deleting environment variable: {key}")
             delete_env_var(key)
@@ -906,28 +899,29 @@ def save_env_table_changes(data):
 
 
 def get_env_var_value(key):
-    """获取环境变量的实际值
+    """Get actual value of an environment variable.
 
-    优先级：前端配置 > .env文件 > 系统环境变量
+    Priority: frontend config > .env file > system environment
     """
-    # 检查前端配置的环境变量
+    # Check frontend-configured variables
     if key in WEB_FRONTEND_ENV_VARS:
         return WEB_FRONTEND_ENV_VARS[key]
 
-    # 检查系统环境变量（包括从.env加载的）
+    # Check system environment (including those loaded from .env)
     return os.environ.get(key, "")
 
 
 def create_ui():
+    """Create the Gradio web UI."""
 
     def clear_log_file():
-        """清空日志文件内容"""
+        """Clear log file contents."""
         try:
             if LOG_FILE and os.path.exists(LOG_FILE):
-                # 清空日志文件内容而不是删除文件
+                # Clear file contents without deleting
                 open(LOG_FILE, "w").close()
                 logging.info("Log file has been cleared")
-                # 清空日志队列
+                # Clear log queue
                 while not LOG_QUEUE.empty():
                     try:
                         LOG_QUEUE.get_nowait()
@@ -940,9 +934,8 @@ def create_ui():
             logging.error(f"Error clearing log file: {str(e)}")
             return ""
 
-    # 创建一个实时日志更新函数
     def process_with_live_logs(question, reference, module_name, state, last_index):
-        """处理问题并实时更新日志"""
+        """Process question with real-time log updates."""
         global CURRENT_PROCESS
 
         result_queue = queue.Queue()

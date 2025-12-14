@@ -1,126 +1,136 @@
-import numpy as np
+"""
+Main entry point for AI-Researcher web interface.
+
+This module is used by web_ai_researcher.py (Gradio UI).
+For CLI usage, prefer `python -m research_agent.cli`.
+"""
 import argparse
-import os
 import asyncio
-import global_state
+import logging
+import os
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Optional
+
 from dotenv import load_dotenv
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Project root directory
+PROJECT_ROOT = Path(__file__).parent
 
 
+class ResearcherState:
+    """Manages execution state for the AI Researcher.
 
-def init_ai_researcher():
-    a = 1
+    Uses a context manager pattern instead of global mutable state.
+    """
+    def __init__(self):
+        self._running = False
+        self._lock = False
 
-def get_args_research(): 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--instance_path", type=str, default="benchmark/gnn.json")
-    parser.add_argument('--container_name', type=str, default='paper_eval')
-    parser.add_argument("--task_level", type=str, default="task1")
-    parser.add_argument("--model", type=str, default="gpt-4o-2024-08-06")
-    parser.add_argument("--workplace_name", type=str, default="workplace")
-    parser.add_argument("--cache_path", type=str, default="cache")
-    parser.add_argument("--port", type=int, default=12345)
-    parser.add_argument("--max_iter_times", type=int, default=0)
-    parser.add_argument("--category", type=str, default="recommendation")
-    args = parser.parse_args()
-    return args
+    @property
+    def is_running(self) -> bool:
+        return self._running
 
-def get_args_paper():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--research_field", type=str, default="vq")
-    parser.add_argument("--instance_id", type=str, default="rotation_vq")
-    args = parser.parse_args()
-    return args
+    @contextmanager
+    def execution_context(self):
+        """Context manager for safe execution state management."""
+        if self._lock:
+            logger.warning("Execution already in progress, skipping")
+            yield False
+            return
 
-def main_ai_researcher(input, reference, mode):
+        self._lock = True
+        self._running = True
+        try:
+            yield True
+        finally:
+            self._running = False
+            self._lock = False
+
+
+# Global state instance (thread-safe for single-threaded Gradio)
+_state = ResearcherState()
+
+
+def get_config() -> dict:
+    """Load configuration from environment variables with defaults."""
     load_dotenv()
-    category = os.getenv("CATEGORY", "vq")
-    instance_id = os.getenv("INSTANCE_ID", "one_layer_vq")
-    task_level = os.getenv("TASK_LEVEL", "task1")
-    container_name = os.getenv("CONTAINER_NAME", "ai_researcher")
-    workplace_name = os.getenv("WORKPLACE_NAME", "workplace")
-    cache_path = os.getenv("CACHE_PATH", "cache")
-    port = int(os.getenv("PORT", "12380"))
-    max_iter_times = int(os.getenv("MAX_ITER_TIMES", "0"))
-
-    
-    match mode:
-        case 'Detailed Idea Description':
-            # global INIT_FLAG
-            if global_state.INIT_FLAG is False:
-                global_state.INIT_FLAG = True
-                current_file_path = os.path.realpath(__file__)
-                current_dir = os.path.dirname(current_file_path)
-                sub_dir = os.path.join(current_dir, "research_agent")
-                os.chdir(sub_dir)
-
-                from research_agent.constant import COMPLETION_MODEL
-                from research_agent import run_infer_idea, run_infer_plan
-
-                args = get_args_research()
-                # category="vq"
-                # instance_id="rotation_vq"
-                args.instance_path = f"../benchmark/final/{category}/{instance_id}.json"
-                args.task_level = task_level
-                args.model = COMPLETION_MODEL
-                args.container_name = container_name
-                args.workplace_name = workplace_name
-                args.cache_path = cache_path
-                args.port = port
-                args.max_iter_times = max_iter_times
-                args.category = category
-
-                run_infer_plan.main(args, input, reference)
-                global_state.INIT_FLAG = False
-        case 'Reference-Based Ideation':
-            # clear_screen()
-            if global_state.INIT_FLAG is False:
-                global_state.INIT_FLAG = True
-                current_file_path = os.path.realpath(__file__)
-                current_dir = os.path.dirname(current_file_path)
-                sub_dir = os.path.join(current_dir, "research_agent")
-                os.chdir(sub_dir)
-
-                from research_agent.constant import COMPLETION_MODEL
-                from research_agent import run_infer_idea, run_infer_plan
-                from research_agent.constant import COMPLETION_MODEL
-                args = get_args_research()
-                # category="vq"
-                # instance_id="one_layer_vq"
-                # args.instance_path = f"../benchmark/final/{category}/{instance_id}.json"
-                # args.container_name = "paper_eval"
-                # args.task_level = "task1"
-                # args.model = COMPLETION_MODEL
-                # args.workplace_name = "workplace"
-                # args.cache_path = "cache"
-                # args.port = 12356
-                # args.max_iter_times = 0
+    return {
+        "category": os.getenv("CATEGORY", "vq"),
+        "instance_id": os.getenv("INSTANCE_ID", "one_layer_vq"),
+        "task_level": os.getenv("TASK_LEVEL", "task1"),
+        "container_name": os.getenv("CONTAINER_NAME", "ai_researcher"),
+        "workplace_name": os.getenv("WORKPLACE_NAME", "workplace"),
+        "cache_path": os.getenv("CACHE_PATH", "cache"),
+        "port": int(os.getenv("PORT", "12380")),
+        "max_iter_times": int(os.getenv("MAX_ITER_TIMES", "0")),
+    }
 
 
-                args.instance_path = f"../benchmark/final/{category}/{instance_id}.json"
-                args.container_name = container_name
-                args.task_level = task_level
-                args.model = COMPLETION_MODEL
-                args.workplace_name = workplace_name
-                args.cache_path = cache_path
-                args.port = port
-                args.max_iter_times = max_iter_times
-                args.category = category
+def create_args(config: dict) -> argparse.Namespace:
+    """Create an argparse Namespace from config dict."""
+    args = argparse.Namespace()
+    args.instance_path = str(PROJECT_ROOT / "benchmark" / "final" / config["category"] / f"{config['instance_id']}.json")
+    args.container_name = config["container_name"]
+    args.task_level = config["task_level"]
+    args.workplace_name = config["workplace_name"]
+    args.cache_path = config["cache_path"]
+    args.port = config["port"]
+    args.max_iter_times = config["max_iter_times"]
+    args.category = config["category"]
+    return args
 
-                run_infer_idea.main(args, reference)
-                global_state.INIT_FLAG = False
-        case 'Paper Generation Agent':
-            # clear_screen()
-            if global_state.INIT_FLAG is False:
-                global_state.INIT_FLAG = True
 
-                from paper_agent import writing
-                args = get_args_paper()
+def main_ai_researcher(input_text: str, reference: str, mode: str) -> Optional[str]:
+    """Run AI Researcher task based on mode.
 
-                research_field=category
-                # instance_id="rotated_vq"
-                args.research_field = research_field
-                args.instance_id = instance_id
+    Args:
+        input_text: User input/ideas for the research task.
+        reference: Reference papers or materials.
+        mode: One of 'Detailed Idea Description', 'Reference-Based Ideation',
+              or 'Paper Generation Agent'.
 
-                asyncio.run(writing.writing(args.research_field, args.instance_id))
-                global_state.INIT_FLAG = False
+    Returns:
+        Result string or None if execution was skipped.
+    """
+    config = get_config()
+
+    with _state.execution_context() as can_execute:
+        if not can_execute:
+            logger.warning("Skipping execution - already running")
+            return None
+
+        # Import here to avoid circular imports and allow lazy loading
+        from research_agent.constant import COMPLETION_MODEL
+
+        args = create_args(config)
+        args.model = COMPLETION_MODEL
+
+        if mode == 'Detailed Idea Description':
+            logger.info(f"Starting Detailed Idea task: {config['category']}/{config['instance_id']}")
+            from research_agent import run_infer_plan
+            run_infer_plan.main(args, input_text, reference)
+
+        elif mode == 'Reference-Based Ideation':
+            logger.info(f"Starting Reference-Based task: {config['category']}/{config['instance_id']}")
+            from research_agent import run_infer_idea
+            run_infer_idea.main(args, reference)
+
+        elif mode == 'Paper Generation Agent':
+            logger.info(f"Starting Paper Generation: {config['category']}/{config['instance_id']}")
+            from paper_agent import writing
+            asyncio.run(writing.writing(config["category"], config["instance_id"]))
+
+        else:
+            logger.error(f"Unknown mode: {mode}")
+            return None
+
+    logger.info("Task completed successfully")
+    return "Task completed"
