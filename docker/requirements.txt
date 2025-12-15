@@ -1,29 +1,86 @@
-fastapi==0.115.12
+# Core dependencies for AI-Researcher Docker container
+# Synced with setup.cfg install_requires
+
+# Web framework
+fastapi>=0.115.0
 uvicorn
+
+# HTTP clients
 httpx
 requests
+
+# Data handling
 python-multipart
 pydantic>=2.6
 numpy
 pandas
 matplotlib
+
+# ML/Scientific
 scikit-learn
-jupyter
-ipykernel
-seaborn
-plotly
-pyarrow
-openpyxl
-polars
-duckdb
 scipy
 statsmodels
 networkx
 tqdm
+
+# Jupyter
+jupyter
+ipykernel
+seaborn
+plotly
+
+# Data formats
+pyarrow
+openpyxl
+polars
+duckdb
+orjson
+
+# Testing
 pytest
+
+# Notebook conversion
 nbconvert
+
+# Visualization
 graphviz
 pydot
-orjson
+
+# Document processing
 docling
 pypdf
+
+# LLM Integration (critical for research_agent)
+litellm>=1.55.0
+openai>=1.52.0
+tiktoken
+
+# RAG/Embeddings
+chromadb
+sentence_transformers
+
+# Environment
+python-dotenv
+tenacity
+
+# Browser automation
+playwright>=1.39.0
+browsergym==0.13.0
+
+# Web scraping
+beautifulsoup4
+html2text
+markdownify
+
+# CLI
+click
+rich
+termcolor
+prompt_toolkit
+
+# Other utilities
+PyYAML
+Pillow
+arxiv
+pathvalidate>=3.2.0
+puremagic

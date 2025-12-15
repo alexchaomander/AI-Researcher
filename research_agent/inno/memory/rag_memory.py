@@ -197,9 +197,32 @@ class Memory:
         """
         self.client.reset()
 
-class Reranker:
+class Reranker(ABC):
+    """Abstract base class for reranking query results.
+
+    Subclasses must implement the rerank() method.
+    """
     def __init__(self, model: str) -> None:
         self.model = model
+
     @abstractmethod
     def rerank(self, query_text: str, query_results: List[Dict]) -> List[Dict]:
-        raise NotImplementedError("Reranker is not implemented")
+        """Rerank query results based on relevance to query text.
+
+        Args:
+            query_text: The query to rank results against.
+            query_results: List of results to rerank.
+
+        Returns:
+            Reranked list of results.
+        """
+        pass
+
+
+class SimpleReranker(Reranker):
+    """Simple passthrough reranker that returns results unchanged.
+
+    Use this as a default when no reranking is needed.
+    """
+    def rerank(self, query_text: str, query_results: List[Dict]) -> List[Dict]:
+        return query_results

@@ -1,8 +1,5 @@
-from inno.util import run_command_in_container
-try:
-    from constant import DOCKER_WORKPLACE_NAME
-except ImportError:
-    from research_agent.constant import DOCKER_WORKPLACE_NAME
+from research_agent.inno.util import run_command_in_container
+from research_agent.constant import DOCKER_WORKPLACE_NAME
 import os
 import shutil
 

@@ -1,23 +1,20 @@
-# global_state.py
+"""
+Global state module for AI-Researcher.
 
+DEPRECATED: This module is maintained for backward compatibility.
+New code should use the ResearcherState class in main_ai_researcher.py instead.
+
+The global state pattern is discouraged because:
+- Makes testing difficult
+- Can cause race conditions in concurrent execution
+- Makes code harder to reason about
+"""
+
+# Logging path (set by MetaChainLogger)
 LOG_PATH = ""
 
+# Execution flags
 START_FLAG = False
 FIRST_MAIN = False
-
-
 EXIT_FLAG = False
 INIT_FLAG = False
-# WORKFLOW_FLAG = False
-# AGENTCREATE_FLAS = False
-
-# AGENT_CREATOR_AGENT_STATE = False
-# META_AGENT_LAST_QUERY = ''
-# WORKFLOW_CREATOR_AGENT_STATE = False
-# WORKFLOW_AGENT_LAST_QUERY = ''
-
-# container_name = 'auto_agent'
-# port = 12345
-# test_pull_name = 'autoagent_mirror'
-# git_clone = True
-# local_env = False

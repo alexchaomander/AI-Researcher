@@ -1,4 +1,5 @@
 import json
+import logging
 from research_agent.inno.workflow.flowcache import FlowModule, ToolModule, AgentModule
 from research_agent.inno.tools.inno_tools.paper_search import get_arxiv_paper_meta
 from research_agent.inno.tools.inno_tools.code_search import search_github_repos, search_github_code
@@ -25,8 +26,8 @@ from typing import List, Dict, Any, Union
 from research_agent.inno.logger import MetaChainLogger
 import importlib
 from research_agent.inno.environment.utils import setup_dataset
-# instance_path = "benchmark/gnn.json"
-# task_level = "task1"
+
+logger = logging.getLogger(__name__)
 def warp_source_papers(source_papers):
     return "\n".join([f"Title: {source_paper['reference']}; You can use this paper in the following way: {source_paper['usage']}" for source_paper in source_papers])
 def extract_json_from_output(output_text: str) -> dict:
@@ -54,21 +55,25 @@ def extract_json_from_output(output_text: str) -> dict:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            print(f"JSON解析错误: {e}")
+            logger.error(f"JSON parsing error: {e}")
             return {}
     return {}
-def get_args(): 
+def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--instance_path", type=str, default="benchmark/gnn.json")
-    parser.add_argument('--container_name', type=str, default='paper_eval')
+    parser.add_argument('--container_name', type=str, default='ai_researcher')
     parser.add_argument("--task_level", type=str, default="task1")
-    parser.add_argument("--model", type=str, default="gpt-4o-2024-08-06")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Model to use (default: COMPLETION_MODEL from env)")
     parser.add_argument("--workplace_name", type=str, default="workplace")
     parser.add_argument("--cache_path", type=str, default="cache")
-    parser.add_argument("--port", type=int, default=12345)
+    parser.add_argument("--port", type=int, default=12380)
     parser.add_argument("--max_iter_times", type=int, default=0)
-    parser.add_argument("--category", type=str, default="recommendation")
+    parser.add_argument("--category", type=str, default="vq")
     args = parser.parse_args()
+    # Use COMPLETION_MODEL from env if model not specified
+    if args.model is None:
+        args.model = COMPLETION_MODEL
     return args
 
 class EvalMetadata(BaseModel):
@@ -103,7 +108,7 @@ class InnoFlow(FlowModule):
         self.load_ins = ToolModule(load_instance, cache_path)
         self.git_search = ToolModule(github_search, cache_path)
         self.prepare_agent = AgentModule(get_prepare_agent(model=CHEEP_MODEL, code_env=code_env), self.client, cache_path)
-        self.download_papaer = ToolModule(download_arxiv_source_by_title, cache_path)
+        self.download_paper = ToolModule(download_arxiv_source_by_title, cache_path)
         self.coding_plan_agent = AgentModule(get_coding_plan_agent(model=CHEEP_MODEL, code_env=code_env), self.client, cache_path)
         self.ml_agent = AgentModule(get_ml_agent(model=COMPLETION_MODEL, code_env=code_env), self.client, cache_path)
         self.judge_agent = AgentModule(get_judge_agent(model=CHEEP_MODEL, code_env=code_env, web_env=web_env, file_env=file_env), self.client, cache_path)
@@ -152,7 +157,7 @@ Your task is to choose at least 5 repositories as the reference codebases. Note 
         prepare_res = prepare_messages[-1]["content"]
         prepare_dict = extract_json_from_output(prepare_res)
         paper_list = prepare_dict["reference_papers"]
-        download_res = self.download_papaer({"paper_list": paper_list, "local_root": local_root, "workplace_name": workplace_name})
+        download_res = self.download_paper({"paper_list": paper_list, "local_root": local_root, "workplace_name": workplace_name})
 
         
         idea_query = f"""\
