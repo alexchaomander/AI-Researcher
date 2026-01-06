@@ -7,6 +7,9 @@ from pathlib import Path
 
 # Load environment variables from .env
 from dotenv import load_dotenv
+from research_agent.validation import load_and_validate_instance
+from research_agent.run_metadata import resolve_run_metadata_path
+from research_agent.artifacts import create_artifact_bundle, create_artifact_folder
 
 PROJECT_ROOT = Path(__file__).parent.parent
 env_path = PROJECT_ROOT / '.env'
@@ -28,6 +31,57 @@ def cli():
     pass
 
 
+def run_task(category: str, instance_id: str, model: str, task_level: str,
+             port: int, max_iter: int, no_docker: bool, dry_run: bool):
+    import argparse
+    import os
+    from research_agent.constant import COMPLETION_MODEL
+
+    model = model or COMPLETION_MODEL
+    instance_path = BENCHMARK_DIR / category / f'{instance_id}.json'
+
+    if not instance_path.exists():
+        raise click.ClickException(f"Task not found: {instance_path}")
+
+    click.echo(f"Starting AI-Researcher task:")
+    click.echo(f"  Category: {category}")
+    click.echo(f"  Instance: {instance_id}")
+    click.echo(f"  Level: {task_level}")
+    click.echo(f"  Model: {model}")
+    click.echo(f"  Docker: {'disabled' if no_docker else 'enabled'}")
+    click.echo("")
+
+    if no_docker:
+        os.environ['USE_DOCKER'] = 'false'
+
+    if not dry_run:
+        api_key = os.getenv('OPENROUTER_API_KEY') or os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise click.ClickException(
+                "No API key found. Set OPENROUTER_API_KEY or OPENAI_API_KEY, or use --dry-run."
+            )
+
+    args = argparse.Namespace(
+        instance_path=str(instance_path),
+        container_name='ai_researcher',
+        task_level=task_level,
+        model=model,
+        workplace_name='workplace',
+        cache_path='cache',
+        port=port,
+        max_iter_times=max_iter,
+        category=category,
+        dry_run=dry_run,
+    )
+
+    if task_level == 'task1':
+        from research_agent.run_infer_plan import main
+        main(args)
+    else:
+        from research_agent.run_infer_idea import main
+        main(args)
+
+
 @cli.command()
 @click.option('--category', '-c', required=True,
               type=click.Choice(RESEARCH_CATEGORIES),
@@ -45,56 +99,16 @@ def cli():
               help='Maximum iteration times (0 for unlimited)')
 @click.option('--no-docker', is_flag=True,
               help='Run without Docker container')
+@click.option('--dry-run', is_flag=True,
+              help='Validate inputs and exit without running agents')
 def run(category: str, instance_id: str, model: str, task_level: str,
-        port: int, max_iter: int, no_docker: bool):
+        port: int, max_iter: int, no_docker: bool, dry_run: bool):
     """Run an autonomous research task.
 
     Example:
         ai-researcher run -c vq -i one_layer_vq -l task1
     """
-    import argparse
-    import os
-    from research_agent.constant import COMPLETION_MODEL
-
-    model = model or COMPLETION_MODEL
-    instance_path = BENCHMARK_DIR / category / f'{instance_id}.json'
-
-    # Check if instance exists
-    if not instance_path.exists():
-        click.echo(f"Error: Task not found: {instance_path}")
-        click.echo(f"Run 'ai-researcher list -c {category}' to see available tasks.")
-        sys.exit(1)
-
-    click.echo(f"Starting AI-Researcher task:")
-    click.echo(f"  Category: {category}")
-    click.echo(f"  Instance: {instance_id}")
-    click.echo(f"  Level: {task_level}")
-    click.echo(f"  Model: {model}")
-    click.echo(f"  Docker: {'disabled' if no_docker else 'enabled'}")
-    click.echo("")
-
-    if no_docker:
-        os.environ['USE_DOCKER'] = 'false'
-
-    # Build args namespace to match expected signature
-    args = argparse.Namespace(
-        instance_path=str(instance_path),
-        container_name='ai_researcher',
-        task_level=task_level,
-        model=model,
-        workplace_name='workplace',
-        cache_path='cache',
-        port=port,
-        max_iter_times=max_iter,
-        category=category
-    )
-
-    if task_level == 'task1':
-        from research_agent.run_infer_plan import main
-        main(args)
-    else:
-        from research_agent.run_infer_idea import main
-        main(args)
+    run_task(category, instance_id, model, task_level, port, max_iter, no_docker, dry_run)
 
 
 @cli.command()
@@ -118,6 +132,164 @@ def list(category: str):
         click.echo(f"\n{cat}/ ({len(tasks)} tasks)")
         for task in sorted(tasks):
             click.echo(f"  - {task}")
+
+
+@cli.command()
+@click.option('--category', '-c', required=True,
+              type=click.Choice(RESEARCH_CATEGORIES),
+              help='Research category')
+@click.option('--instance-id', '-i', required=True,
+              help='Instance ID of the benchmark task')
+def preview(category: str, instance_id: str):
+    """Preview a benchmark task without running it."""
+    instance_path = BENCHMARK_DIR / category / f'{instance_id}.json'
+    payload = load_and_validate_instance(instance_path)
+
+    click.echo(f"Instance: {payload.get('instance_id')}")
+    click.echo(f"Target: {payload.get('target')}")
+    click.echo(f"Year: {payload.get('year')}")
+    click.echo(f"URL: {payload.get('url')}")
+    source_papers = payload.get("source_papers", [])
+    click.echo(f"Source papers: {len(source_papers)}")
+    if source_papers:
+        click.echo("Sources:")
+        for paper in source_papers:
+            click.echo(f"  - {paper.get('reference')}")
+    click.echo("")
+    click.echo("Task1:")
+    click.echo(str(payload.get("task1", "")).strip())
+    click.echo("")
+    click.echo("Task2:")
+    click.echo(str(payload.get("task2", "")).strip())
+
+
+@cli.command()
+def wizard():
+    """Interactive wizard to configure and run a task."""
+    category = click.prompt("Category", type=click.Choice(RESEARCH_CATEGORIES))
+    tasks = sorted((BENCHMARK_DIR / category).glob("*.json"))
+    if not tasks:
+        raise click.ClickException(f"No tasks found for category {category}")
+    task_names = [task.stem for task in tasks]
+    instance_id = click.prompt("Instance ID", type=click.Choice(task_names))
+    task_level = click.prompt("Task level", type=click.Choice(["task1", "task2"]), default="task1")
+    model = click.prompt("Model (leave blank for default)", default="", show_default=False)
+    port = click.prompt("Docker port", default=12380, type=int)
+    max_iter = click.prompt("Max iterations (0 for unlimited)", default=0, type=int)
+    no_docker = click.confirm("Run without Docker?", default=False)
+    dry_run = click.confirm("Dry run only?", default=False)
+
+    run_task(
+        category=category,
+        instance_id=instance_id,
+        model=model or None,
+        task_level=task_level,
+        port=port,
+        max_iter=max_iter,
+        no_docker=no_docker,
+        dry_run=dry_run,
+    )
+
+
+@cli.command()
+@click.option('--category', '-c', default=None,
+              type=click.Choice(RESEARCH_CATEGORIES),
+              help='Research category')
+@click.option('--instance-id', '-i', default=None,
+              help='Instance ID of the benchmark task')
+@click.option('--task-level', '-l', default='task1',
+              type=click.Choice(['task1', 'task2']),
+              help='Task level: task1 (detailed idea) or task2 (reference-based)')
+@click.option('--model', '-m', default=None,
+              help='Model name used for the run (default: COMPLETION_MODEL env var)')
+@click.option('--show', is_flag=True,
+              help='Print the metadata JSON to stdout')
+@click.option('--latest', is_flag=True,
+              help='Return the most recent run metadata in workplace_paper')
+@click.option('--open', 'open_file', is_flag=True,
+              help='Open the metadata file in the default viewer')
+def metadata(category: str, instance_id: str, task_level: str, model: str, show: bool, latest: bool, open_file: bool):
+    """Locate and optionally print run metadata."""
+    import os
+    import json
+    import subprocess
+    from pathlib import Path
+    from research_agent.constant import COMPLETION_MODEL
+
+    if latest:
+        root = Path.cwd() / "workplace_paper"
+        candidates = list(root.rglob("run_metadata.json"))
+        if not candidates:
+            raise click.ClickException("No run metadata found under workplace_paper")
+        candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+        metadata_path = candidates[0]
+    else:
+        if not category or not instance_id:
+            raise click.ClickException("Provide --category and --instance-id, or use --latest")
+        model = model or os.getenv("COMPLETION_MODEL") or COMPLETION_MODEL
+        metadata_path = resolve_run_metadata_path(instance_id, task_level, model)
+
+    if not metadata_path.exists():
+        raise click.ClickException(f"Run metadata not found: {metadata_path}")
+
+    click.echo(str(metadata_path))
+    if show:
+        with metadata_path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        click.echo(json.dumps(payload, indent=2, ensure_ascii=True))
+    if open_file:
+        if sys.platform.startswith("darwin"):
+            command = ["open", str(metadata_path)]
+        elif sys.platform.startswith("win"):
+            command = ["cmd", "/c", "start", "", str(metadata_path)]
+        else:
+            command = ["xdg-open", str(metadata_path)]
+        subprocess.run(command, check=False)
+
+
+@cli.command()
+@click.option('--category', '-c', default=None,
+              type=click.Choice(RESEARCH_CATEGORIES),
+              help='Research category')
+@click.option('--instance-id', '-i', default=None,
+              help='Instance ID of the benchmark task')
+@click.option('--task-level', '-l', default='task1',
+              type=click.Choice(['task1', 'task2']),
+              help='Task level: task1 (detailed idea) or task2 (reference-based)')
+@click.option('--model', '-m', default=None,
+              help='Model name used for the run (default: COMPLETION_MODEL env var)')
+@click.option('--latest', is_flag=True,
+              help='Use the most recent run metadata in workplace_paper')
+@click.option('--output-dir', default=None,
+              help='Optional output directory for the bundle')
+@click.option('--folder', 'as_folder', is_flag=True,
+              help='Create a folder instead of a zip bundle')
+def bundle(category: str, instance_id: str, task_level: str, model: str, latest: bool, output_dir: str | None, as_folder: bool):
+    """Create an artifact bundle (logs + metadata + prompts) for a run."""
+    import os
+    from pathlib import Path
+    from research_agent.constant import COMPLETION_MODEL
+
+    if latest:
+        root = Path.cwd() / "workplace_paper"
+        candidates = list(root.rglob("run_metadata.json"))
+        if not candidates:
+            raise click.ClickException("No run metadata found under workplace_paper")
+        candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+        metadata_path = candidates[0]
+    else:
+        if not category or not instance_id:
+            raise click.ClickException("Provide --category and --instance-id, or use --latest")
+        model = model or os.getenv("COMPLETION_MODEL") or COMPLETION_MODEL
+        metadata_path = resolve_run_metadata_path(instance_id, task_level, model)
+        if not metadata_path.exists():
+            raise click.ClickException(f"Run metadata not found: {metadata_path}")
+
+    if as_folder:
+        bundle_path = create_artifact_folder(metadata_path, output_dir=output_dir)
+    else:
+        bundle_path = create_artifact_bundle(metadata_path, output_dir=output_dir)
+    click.echo(str(bundle_path))
 
 
 @cli.command()

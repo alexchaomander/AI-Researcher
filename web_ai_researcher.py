@@ -14,6 +14,7 @@ import re  # For regular expression operations
 import random
 import global_state
 import base64
+from research_agent.artifacts import create_artifact_bundle, create_artifact_folder
 
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
@@ -79,6 +80,97 @@ def return_paper_file():
     global PAPER_FILE
     PAPER_FILE = f'{category}/target_sections/{instance_id}/iclr2025_conference.pdf'
     return PAPER_FILE
+
+def _find_run_metadata_files():
+    root = os.path.join(os.getcwd(), "workplace_paper")
+    if not os.path.exists(root):
+        return []
+    candidates = []
+    for base, _, files in os.walk(root):
+        if "run_metadata.json" in files:
+            candidates.append(os.path.join(base, "run_metadata.json"))
+    candidates.sort(key=lambda path: os.path.getmtime(path), reverse=True)
+    return candidates
+
+
+def refresh_run_metadata_choices():
+    candidates = _find_run_metadata_files()
+    value = candidates[0] if candidates else None
+    return gr.update(choices=candidates, value=value)
+
+
+def filter_run_metadata_choices(query: str):
+    candidates = _find_run_metadata_files()
+    if query:
+        query_lower = query.lower()
+        candidates = [path for path in candidates if query_lower in path.lower()]
+    value = candidates[0] if candidates else None
+    return gr.update(choices=candidates, value=value)
+
+
+def return_run_metadata_file(selected_path):
+    if selected_path and os.path.exists(selected_path):
+        return selected_path
+    candidates = _find_run_metadata_files()
+    if candidates:
+        return candidates[0]
+    logging.error("No run metadata found under workplace_paper")
+    return None
+
+
+def _load_run_registry():
+    registry_path = os.path.join(os.getcwd(), "workplace_paper", "run_registry.jsonl")
+    if not os.path.exists(registry_path):
+        return []
+    rows = []
+    with open(registry_path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            instance = payload.get("instance", {})
+            execution = payload.get("execution", {})
+            rows.append({
+                "timestamp": payload.get("timestamp"),
+                "instance_id": instance.get("id"),
+                "category": instance.get("category"),
+                "task_level": instance.get("task_level"),
+                "model": payload.get("models", {}).get("completion_model"),
+                "log_path": execution.get("log_path"),
+                "metadata_path": execution.get("metadata_path") or instance.get("path"),
+            })
+    return rows
+
+
+def refresh_run_registry_table():
+    rows = _load_run_registry()
+    return gr.update(value=rows)
+
+
+def create_run_artifact_bundle(selected_path):
+    if not selected_path:
+        return None
+    try:
+        return str(create_artifact_bundle(selected_path))
+    except Exception as exc:
+        logging.error("Failed to create artifact bundle: %s", exc)
+        return None
+
+
+def copy_run_artifacts_to_folder(selected_path):
+    if not selected_path:
+        return None
+    try:
+        metadata_path = os.path.abspath(selected_path)
+        folder_path = create_artifact_folder(metadata_path)
+        return str(folder_path)
+    except Exception as exc:
+        logging.error("Failed to copy run artifacts: %s", exc)
+        return None
 
 def return_paper_log_file():
     return PAPER_LOG
@@ -1514,7 +1606,32 @@ def create_ui():
                         download_research_logs = gr.Button("Extract research log files")
                         download_paper_logs = gr.Button("Extract paper log files")
                         download_paper = gr.Button("Extract paper")
+                        download_run_metadata = gr.Button("Extract run metadata")
+                        create_artifact_bundle_button = gr.Button("Create artifact bundle (zip)")
+                        copy_artifacts_button = gr.Button("Create artifact folder")
                         file_output = gr.File(label="click to download", elem_classes="custom-file")
+
+                    with gr.Row():
+                        run_metadata_dropdown = gr.Dropdown(
+                            label="Run metadata files",
+                            choices=_find_run_metadata_files(),
+                            value=None,
+                        )
+                        refresh_run_metadata = gr.Button("Refresh run metadata list")
+                        run_metadata_search = gr.Textbox(
+                            label="Filter metadata list",
+                            placeholder="Type to filter by path...",
+                        )
+
+                    strict_mode_enabled = os.getenv("STRICT_AGENT_OUTPUTS", "false").lower() in {"1", "true", "yes", "on"}
+                    if strict_mode_enabled:
+                        gr.Markdown(
+                            """
+                            <div style="background-color: #fff3cd; border-left: 6px solid #ffc107; padding: 10px; margin: 15px 0; border-radius: 4px;">
+                            <strong>Strict Mode</strong>: STRICT_AGENT_OUTPUTS is enabled. Agent outputs must include required JSON blocks.
+                            </div>
+                            """
+                        )
 
                 with gr.TabItem("Environment Variable Management", id="env-settings"):
                     with gr.Group(elem_classes="env-manager-container"):
@@ -1572,12 +1689,27 @@ def create_ui():
                                         elem_classes="env-instructions",
                                     )
 
+                                    gr.Markdown(
+                                        """
+                                    <div style="background-color: #f8d7da; border-left: 6px solid #dc3545; padding: 10px; margin: 15px 0; border-radius: 4px;">
+                                    <strong>Warning</strong>: Saving changes will update the local <code>.env</code> file. Confirm you understand the risks before proceeding.
+                                    </div>
+                                    """,
+                                        elem_classes="env-instructions",
+                                    )
+
+                                    env_ack = gr.Checkbox(
+                                        label="I understand and want to update the local .env file",
+                                        value=False,
+                                    )
+
                                     # Environment variable operation buttons
                                     with gr.Row(elem_classes="env-buttons"):
                                         save_env_button = gr.Button(
                                             "💾 Save Changes",
                                             variant="primary",
                                             elem_classes="env-button",
+                                            interactive=False,
                                         )
                                         refresh_button = gr.Button(
                                             "🔄 Refresh List", elem_classes="env-button"
@@ -1590,6 +1722,12 @@ def create_ui():
                                         elem_classes="env-status",
                                     )
 
+                    env_ack.change(
+                        fn=lambda enabled: gr.update(interactive=enabled),
+                        inputs=[env_ack],
+                        outputs=[save_env_button],
+                    )
+
                     save_env_button.click(
                         fn=save_env_table_changes,
                         inputs=[env_table],
@@ -1597,6 +1735,26 @@ def create_ui():
                     ).then(fn=update_env_table, outputs=[env_table])
 
                     refresh_button.click(fn=update_env_table, outputs=[env_table])
+
+                with gr.TabItem("Run History"):
+                    gr.Markdown("### Run History")
+                    run_registry_table = gr.Dataframe(
+                        headers=[
+                            "timestamp",
+                            "instance_id",
+                            "category",
+                            "task_level",
+                            "model",
+                            "log_path",
+                            "metadata_path",
+                        ],
+                        datatype=["str"] * 7,
+                        value=_load_run_registry(),
+                        label="Run Registry",
+                        interactive=False,
+                    )
+                    refresh_registry = gr.Button("Refresh run history")
+                    refresh_registry.click(fn=refresh_run_registry_table, outputs=[run_registry_table])
 
 
         run_button.click(
@@ -1614,6 +1772,30 @@ def create_ui():
         download_research_logs.click(fn=return_log_file, outputs=file_output)
         download_paper_logs.click(fn=return_log_file, outputs=file_output)
         download_paper.click(fn=return_paper_file, outputs=file_output)
+        download_run_metadata.click(
+            fn=return_run_metadata_file,
+            inputs=[run_metadata_dropdown],
+            outputs=file_output,
+        )
+        create_artifact_bundle_button.click(
+            fn=create_run_artifact_bundle,
+            inputs=[run_metadata_dropdown],
+            outputs=file_output,
+        )
+        copy_artifacts_button.click(
+            fn=copy_run_artifacts_to_folder,
+            inputs=[run_metadata_dropdown],
+            outputs=file_output,
+        )
+        refresh_run_metadata.click(
+            fn=refresh_run_metadata_choices,
+            outputs=[run_metadata_dropdown],
+        )
+        run_metadata_search.change(
+            fn=filter_run_metadata_choices,
+            inputs=[run_metadata_search],
+            outputs=[run_metadata_dropdown],
+        )
 
         # clear_logs_button2.click(fn=clear_log_file, outputs=[log_display2])
 
