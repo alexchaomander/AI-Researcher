@@ -18,6 +18,26 @@ REQUIRED_INSTANCE_KEYS = {
 
 REQUIRED_SOURCE_PAPER_KEYS = {"reference", "rank", "type", "justification", "usage"}
 
+PLAN_JSON_SCHEMA = {
+    "type": "object",
+    "required": ["dataset_plan", "model_plan", "training_plan", "testing_plan"],
+    "properties": {
+        "dataset_plan": {"type": "string"},
+        "model_plan": {"type": "string"},
+        "training_plan": {"type": "string"},
+        "testing_plan": {"type": "string"},
+    },
+}
+
+ML_JSON_SCHEMA = {
+    "type": "object",
+    "required": ["status", "summary"],
+    "properties": {
+        "status": {"type": "string"},
+        "summary": {"type": "string"},
+    },
+}
+
 
 def _ensure_non_empty(value: Any) -> bool:
     if value is None:
@@ -113,6 +133,20 @@ def _extract_json_objects(text: str) -> List[Dict[str, Any]]:
     return objects
 
 
+def _validate_against_schema(payload: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
+    errors: List[str] = []
+    try:
+        from jsonschema import validate, ValidationError
+    except Exception:
+        return errors
+
+    try:
+        validate(instance=payload, schema=schema)
+    except ValidationError as exc:
+        errors.append(f"Schema validation error: {exc.message}")
+    return errors
+
+
 def validate_judge_output(content: Any) -> List[str]:
     errors: List[str] = []
     if not _ensure_non_empty(content):
@@ -163,6 +197,8 @@ def validate_plan_output(content: Any, strict: bool = False) -> List[str]:
         missing = required - plan_obj.keys()
         if missing:
             errors.append(f"Plan Agent JSON missing keys: {sorted(missing)}")
+        schema_errors = _validate_against_schema(plan_obj, PLAN_JSON_SCHEMA)
+        errors.extend(schema_errors)
     return errors
 
 
@@ -187,6 +223,8 @@ def validate_ml_output(content: Any, strict: bool = False) -> List[str]:
             errors.append("ML Agent JSON status must be 'completed'")
         if not _ensure_non_empty(ml_obj.get("summary")):
             errors.append("ML Agent JSON summary must be non-empty")
+        schema_errors = _validate_against_schema(ml_obj, ML_JSON_SCHEMA)
+        errors.extend(schema_errors)
     return errors
 
 

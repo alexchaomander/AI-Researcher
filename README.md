@@ -107,6 +107,7 @@ ai-researcher bundle --latest
 ai-researcher bundle --latest --folder
 ai-researcher registry -n 10
 ai-researcher clean --apply
+ai-researcher bench-validate
 
 # Web GUI (requires .[full] install)
 python web_ai_researcher.py

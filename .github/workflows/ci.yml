@@ -19,5 +19,9 @@ jobs:
         run: |
           uv venv --python 3.11
           uv pip install -e ".[dev]" --python .venv/bin/python
+      - name: Lint
+        run: uv run --python .venv/bin/python ruff check . --select F --ignore F401,F403,F405
+      - name: Dry run
+        run: .venv/bin/ai-researcher run -c vq -i one_layer_vq -l task1 --dry-run
       - name: Run tests
         run: uv run --python .venv/bin/python pytest tests/test_benchmark_instances.py tests/test_metachain_tool_calls.py
