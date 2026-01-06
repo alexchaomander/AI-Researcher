@@ -24,7 +24,23 @@ import os
 from typing import List, Dict, Any, Union
 from research_agent.inno.logger import MetaChainLogger
 import importlib
-from research_agent.inno.environment.utils import setup_dataset
+from research_agent.inno.environment.utils import setup_dataset, dataset_integrity_report
+from research_agent.run_metadata import (
+    build_run_metadata,
+    write_run_metadata,
+    update_run_metadata,
+    append_run_registry,
+)
+from research_agent.validation import (
+    load_and_validate_instance,
+    validate_prepare_agent_output,
+    validate_non_empty_agent_output,
+    validate_judge_output,
+    validate_plan_output,
+    validate_ml_output,
+    strict_agent_outputs_enabled,
+    format_validation_errors,
+)
 
 logger = logging.getLogger(__name__)
 def warp_source_papers(source_papers):
@@ -69,6 +85,7 @@ def get_args():
     parser.add_argument("--port", type=int, default=12380)
     parser.add_argument("--max_iter_times", type=int, default=0)
     parser.add_argument("--category", type=str, default="vq")
+    parser.add_argument("--dry_run", action="store_true", help="Validate inputs and exit without running agents")
     args = parser.parse_args()
     # Use COMPLETION_MODEL from env if model not specified
     if args.model is None:
@@ -123,8 +140,8 @@ class InnoFlow(FlowModule):
         }
 
         github_result = self.git_search({"metadata": metadata})
-        
-        
+
+        prompt_snapshots = []
         query = f"""\
 You are given a list of papers, searching results of the papers on GitHub, and innovative ideas according to the papers.
 List of papers:
@@ -138,10 +155,16 @@ innovative ideas:
 
 Your task is to choose at least 5 repositories as the reference codebases.
 """
+        prompt_snapshots.append({"name": "prepare_query", "prompt": query})
         messages = [{"role": "user", "content": query}]
         prepare_messages, context_variables = await self.prepare_agent(messages, context_variables)
         prepare_res = prepare_messages[-1]["content"]
         prepare_dict = extract_json_from_output(prepare_res)
+        prepare_errors = validate_prepare_agent_output(prepare_dict)
+        if prepare_errors:
+            raise ValueError(
+                f"Prepare agent output invalid: {format_validation_errors(prepare_errors)}"
+            )
         paper_list = prepare_dict["reference_papers"]
         download_res = self.download_paper({"paper_list": paper_list, "local_root": local_root, "workplace_name": workplace_name})
         survey_query = f"""\
@@ -159,10 +182,14 @@ Your task is to do a comprehensive survey on the innovative ideas and the papers
 
 Note that the math formula should be as complete as possible, and the code implementation should be as complete as possible. Don't use placeholder code.
 """
+        prompt_snapshots.append({"name": "survey_query", "prompt": survey_query})
         messages = [{"role": "user", "content": survey_query}]
         context_variables["notes"] = []
         survey_messages, context_variables = await self.survey_agent(messages, context_variables)
         survey_res = survey_messages[-1]["content"]
+        survey_errors = validate_non_empty_agent_output("Survey Agent", survey_res)
+        if survey_errors:
+            raise ValueError(format_validation_errors(survey_errors))
         context_variables["model_survey"] = survey_res
 
         data_module = importlib.import_module(f"benchmark.process.dataset_candidate.{category}.metaprompt")
@@ -199,9 +226,13 @@ We have already selected the following datasets as experimental datasets:
 
 Your task is to carefully review the existing resources and understand the task, and give me a detailed plan for the implementation.
 """
+        prompt_snapshots.append({"name": "plan_query", "prompt": plan_query})
         messages = [{"role": "user", "content": plan_query}]
         plan_messages, context_variables = await self.coding_plan_agent(messages, context_variables)
         plan_res = plan_messages[-1]["content"]
+        plan_errors = validate_plan_output(plan_res, strict=strict_agent_outputs_enabled())
+        if plan_errors:
+            raise ValueError(format_validation_errors(plan_errors))
 
         # write the model based on the model survey notes
         ml_dev_query = f"""\
@@ -320,9 +351,13 @@ Remember:
 - Project MUST run end-to-end without placeholders
 - MUST complete 2 epochs of training and testing
 """
+        prompt_snapshots.append({"name": "ml_dev_query", "prompt": ml_dev_query})
         messages = [{"role": "user", "content": ml_dev_query}]
         ml_dev_messages, context_variables = await self.ml_agent(messages, context_variables)
         ml_dev_res = ml_dev_messages[-1]["content"]
+        ml_errors = validate_ml_output(ml_dev_res, strict=strict_agent_outputs_enabled())
+        if ml_errors:
+            raise ValueError(format_validation_errors(ml_errors))
 
         query = f"""\
 INPUT:
@@ -345,12 +380,16 @@ Your task is to evaluate the implementation, and give a suggestion about the imp
 2. The implementation should have the test process. All in all, you should train ONE dataset with TWO epochs, and finally test the model on the test dataset within one script. The test metrics should follow the plan.
 3. The model should be train on GPU device. If you meet Out of Memory problem, you should try another specific GPU device.
 """
+        prompt_snapshots.append({"name": "judge_query", "prompt": query})
         input_messages = [{
             "role": "user",
             "content": query
         }]
         judge_messages, context_variables = await self.judge_agent(input_messages, context_variables)
         judge_res = judge_messages[-1]["content"]
+        judge_errors = validate_judge_output(judge_res)
+        if judge_errors:
+            raise ValueError(format_validation_errors(judge_errors))
 
         MAX_ITER_TIMES = max_iter_times
         for i in range(MAX_ITER_TIMES):
@@ -428,9 +467,13 @@ Your task is to submit the code to the environment by running the script `run_tr
 Note that if your last implementation is not runable, you should finalize the submission with `case_not_resolved` function. But you can temporarily ignore the judgement of the `Judge Agent` which contains the suggestions about the implementation.
 After you get the result, you should return the result with your analysis and suggestions about the implementation with `case_resolved` function.
 """
+        prompt_snapshots.append({"name": "ml_submit_query", "prompt": ml_submit_query})
         judge_messages.append({"role": "user", "content": ml_submit_query})
         judge_messages, context_variables = await self.ml_agent(judge_messages, context_variables, iter_times="submit")
         submit_res = judge_messages[-1]["content"]
+        submit_errors = validate_ml_output(submit_res, strict=strict_agent_outputs_enabled())
+        if submit_errors:
+            raise ValueError(format_validation_errors(submit_errors))
 
         EXP_ITER_TIMES = 2
         for i in range(EXP_ITER_TIMES):
@@ -452,6 +495,7 @@ Your task is to:
     - ANY other experiments that exsiting concurrent reference papers and codebases have done.
 DO NOT use the `case_resolved` function before you have carefully and comprehensively analyzed the experimental results and the reference codebases and papers.
 """
+            prompt_snapshots.append({"name": f"exp_planner_query_{i+1}", "prompt": exp_planner_query})
             judge_messages.append({"role": "user", "content": exp_planner_query})
             judge_messages, context_variables = await self.exp_analyser(judge_messages, context_variables, iter_times=f"refine_{i+1}")
             analysis_report = judge_messages[-1]["content"]
@@ -474,9 +518,16 @@ Your task is to refine the experimental results according to the analysis report
 
 Note that you should fully utilize the existing code in the directory `/{workplace_name}/project` as much as possible. If you want to add more experiments, you should add the python script in the directory `/{workplace_name}/project/`, like `run_training_testing.py`. Select and output the important results during the experiments into the log files, do NOT output them all in the terminal.
 """
+            prompt_snapshots.append({"name": f"exp_refine_query_{i+1}", "prompt": refine_query})
             judge_messages.append({"role": "user", "content": refine_query})
             judge_messages, context_variables = await self.ml_agent(judge_messages, context_variables, iter_times=f"refine_{i+1}")
             refine_res = judge_messages[-1]["content"]
+
+        if prompt_snapshots:
+            prompt_path = os.path.join(local_root, "prompt_snapshot.json")
+            with open(prompt_path, "w", encoding="utf-8") as handle:
+                json.dump(prompt_snapshots, handle, indent=2, ensure_ascii=True)
+            update_run_metadata(local_root, {"execution": {"prompt_snapshot_path": prompt_path}})
 
 #         print(refine_res)
         
@@ -505,9 +556,8 @@ def main(args, ideas=None, references=None):
         if done:
             break
     """
-    # load the eval instance
-    with open(args.instance_path, "r", encoding="utf-8") as f:
-        eval_instance = json.load(f)
+    # load and validate the eval instance
+    eval_instance = load_and_validate_instance(args.instance_path)
     if ideas is None:
         ideas = eval_instance.get(args.task_level, "")
     if references is None:
@@ -517,15 +567,34 @@ def main(args, ideas=None, references=None):
     local_root = os.path.join(os.getcwd(),"workplace_paper" , f"task_{instance_id}" + "_" + model_safe,  args.workplace_name)
     container_name = args.container_name + "_" + instance_id + "_" + model_safe
     os.makedirs(local_root, exist_ok=True)
-    env_config = DockerConfig(container_name = container_name, 
-                              workplace_name = args.workplace_name, 
-                              communication_port = args.port, 
-                              local_root = local_root,
-                              )
+    os.environ.setdefault("AI_RESEARCHER_SEED", "42")
+    run_metadata = build_run_metadata(args, eval_instance)
+    if args.dry_run:
+        run_metadata["dataset_setup"] = {"skipped": True, "reason": "dry_run"}
+        metadata_path = write_run_metadata(local_root, run_metadata)
+        run_metadata["execution"]["metadata_path"] = str(metadata_path)
+        update_run_metadata(local_root, run_metadata)
+        append_run_registry(run_metadata)
+        logger.info("Dry run enabled. Instance validated; skipping execution.")
+        return
+
+    env_config = DockerConfig(
+        container_name=container_name,
+        workplace_name=args.workplace_name,
+        communication_port=args.port,
+        local_root=local_root,
+    )
     
     code_env = DockerEnv(env_config)
     code_env.init_container()
-    setup_dataset(args.category, code_env.local_workplace)
+    dataset_info = setup_dataset(args.category, code_env.local_workplace)
+    integrity_info = dataset_integrity_report(code_env.local_workplace)
+    run_metadata["dataset_setup"] = dataset_info or {}
+    run_metadata["dataset_integrity"] = integrity_info
+    metadata_path = write_run_metadata(local_root, run_metadata)
+    run_metadata["execution"]["metadata_path"] = str(metadata_path)
+    update_run_metadata(local_root, run_metadata)
+    append_run_registry(run_metadata)
     web_env = BrowserEnv(browsergym_eval_env = None, local_root=env_config.local_root, workplace_name=env_config.workplace_name) if USE_BROWSER_ENV else None
     file_env = RequestsMarkdownBrowser(viewport_size=1024 * 4, local_root=env_config.local_root, workplace_name=env_config.workplace_name, downloads_folder=os.path.join(env_config.local_root, env_config.workplace_name, "downloads"))
     flow = InnoFlow(cache_path="cache_" + instance_id + "_" + COMPLETION_MODEL.replace("/", "__"), log_path="log_" + instance_id, code_env=code_env, web_env=web_env, file_env=file_env, model=args.model)

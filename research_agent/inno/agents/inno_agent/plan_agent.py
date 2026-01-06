@@ -4,6 +4,7 @@ from research_agent.inno.util import make_message, make_tool_message
 from research_agent.inno.registry import register_agent
 from research_agent.inno.environment.docker_env import DockerEnv, with_env
 from inspect import signature
+import json
 
 def case_resolved(context_variables):
    """ 
@@ -24,6 +25,13 @@ I have reviewed the existing resources and understand the task, and here is the 
 # Testing Plans
 {context_variables["testing_plan"]}
 """
+   plan_payload = {
+       "dataset_plan": context_variables.get("dataset_plan"),
+       "model_plan": context_variables.get("model_survey"),
+       "training_plan": context_variables.get("training_plan"),
+       "testing_plan": context_variables.get("testing_plan"),
+   }
+   merged_plan += "\n\nPLAN_JSON:\n" + json.dumps(plan_payload, indent=2)
    return merged_plan
 
 @register_agent("get_coding_plan_agent")

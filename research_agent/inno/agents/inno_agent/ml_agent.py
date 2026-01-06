@@ -6,6 +6,7 @@ from research_agent.inno.util import make_message, make_tool_message
 from research_agent.inno.registry import register_agent
 from research_agent.inno.environment.docker_env import DockerEnv, with_env
 from inspect import signature
+import json
 def case_resolved(task_response):
    """
    The task response is the result of the task. Use this function only after you have successfully completed the task. 
@@ -13,7 +14,13 @@ def case_resolved(task_response):
    Args:
       task_response: The result of the task.
    """
-   return task_response
+   summary = task_response.strip()
+   summary = summary[:500] if summary else ""
+   payload = {
+      "status": "completed",
+      "summary": summary,
+   }
+   return f"{task_response}\n\nML_JSON:\n{json.dumps(payload, indent=2)}"
 
 def case_not_resolved(failure_reason):
    """
@@ -99,4 +106,3 @@ Remember: Your goal is to create a well-organized, self-contained project that:
     tool_choice = "required", 
     parallel_tool_calls = False
     )
-

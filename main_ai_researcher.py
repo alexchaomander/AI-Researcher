@@ -71,6 +71,7 @@ def get_config() -> dict:
         "cache_path": os.getenv("CACHE_PATH", "cache"),
         "port": int(os.getenv("PORT", "12380")),
         "max_iter_times": int(os.getenv("MAX_ITER_TIMES", "0")),
+        "dry_run": os.getenv("DRY_RUN", "false").lower() in {"1", "true", "yes", "on"},
     }
 
 
@@ -85,6 +86,7 @@ def create_args(config: dict) -> argparse.Namespace:
     args.port = config["port"]
     args.max_iter_times = config["max_iter_times"]
     args.category = config["category"]
+    args.dry_run = config["dry_run"]
     return args
 
 
