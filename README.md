@@ -95,6 +95,19 @@ The system supports multiple embedding providers with automatic fallbacks:
 # CLI help
 python -m research_agent.inno.cli --help
 
+# Main CLI
+ai-researcher --help
+ai-researcher run -c vq -i one_layer_vq -l task1
+ai-researcher preview -c vq -i one_layer_vq
+ai-researcher wizard
+
+# Run metadata and artifacts
+ai-researcher metadata --latest --show
+ai-researcher bundle --latest
+ai-researcher bundle --latest --folder
+ai-researcher registry -n 10
+ai-researcher clean --apply
+
 # Web GUI (requires .[full] install)
 python web_ai_researcher.py
 

@@ -3,6 +3,8 @@ AI-Researcher CLI - Main entry point for autonomous research tasks.
 """
 import click
 import sys
+import json
+import shutil
 from pathlib import Path
 
 # Load environment variables from .env
@@ -290,6 +292,92 @@ def bundle(category: str, instance_id: str, task_level: str, model: str, latest:
     else:
         bundle_path = create_artifact_bundle(metadata_path, output_dir=output_dir)
     click.echo(str(bundle_path))
+
+
+@cli.command()
+@click.option('--category', '-c', default=None,
+              type=click.Choice(RESEARCH_CATEGORIES),
+              help='Filter by category')
+@click.option('--instance-id', '-i', default=None,
+              help='Filter by instance ID')
+@click.option('--limit', '-n', default=20,
+              help='Limit number of rows shown')
+def registry(category: str | None, instance_id: str | None, limit: int):
+    """Show recent run registry entries."""
+    registry_path = Path.cwd() / "workplace_paper" / "run_registry.jsonl"
+    if not registry_path.exists():
+        raise click.ClickException("Run registry not found: workplace_paper/run_registry.jsonl")
+    rows = []
+    with registry_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            instance = payload.get("instance", {})
+            if category and instance.get("category") != category:
+                continue
+            if instance_id and instance.get("id") != instance_id:
+                continue
+            rows.append({
+                "timestamp": payload.get("timestamp"),
+                "instance_id": instance.get("id"),
+                "category": instance.get("category"),
+                "task_level": instance.get("task_level"),
+                "model": payload.get("models", {}).get("completion_model"),
+            })
+    rows = list(reversed(rows))[-limit:]
+    if not rows:
+        click.echo("No matching entries.")
+        return
+    header = f"{'timestamp':24}  {'instance_id':16}  {'category':12}  {'task':6}  {'model'}"
+    click.echo(header)
+    click.echo("-" * len(header))
+    for row in rows:
+        click.echo(
+            f"{str(row.get('timestamp', '')):24}  "
+            f"{str(row.get('instance_id', '')):16}  "
+            f"{str(row.get('category', '')):12}  "
+            f"{str(row.get('task_level', '')):6}  "
+            f"{str(row.get('model', ''))}"
+        )
+
+
+@cli.command()
+@click.option('--apply', is_flag=True,
+              help='Delete files instead of dry run')
+def clean(apply: bool):
+    """Clean runtime artifacts (logs, caches, workspaces)."""
+    targets = [
+        "logs",
+        "terminal_tmp",
+        "cache",
+        "cache_*",
+        "workplace",
+        "workplace_paper",
+        "paper_db",
+        "research_agent/cache",
+        "research_agent/cache_*",
+        "research_agent/*_tmp",
+        "research_agent/workplace_*",
+        "research_agent/workspace_*",
+    ]
+    paths = []
+    for target in targets:
+        paths.extend(Path.cwd().glob(target))
+    if not paths:
+        click.echo("No cleanup targets found.")
+        return
+    for path in paths:
+        click.echo(f"{'DELETE' if apply else 'DRY RUN'} {path}")
+        if apply:
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                path.unlink(missing_ok=True)
 
 
 @cli.command()
