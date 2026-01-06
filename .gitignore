@@ -9,6 +9,10 @@ __pycache__/
 tmp/*
 logs/*
 *.tar.gz
+terminal_tmp/
+workplace/
+cache_*/*
+.venv/
 
 *.egg-info
 

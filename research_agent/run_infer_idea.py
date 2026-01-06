@@ -277,9 +277,14 @@ Your task is to carefully review the existing resources and understand the task,
         messages = [{"role": "user", "content": plan_query}]
         plan_messages, context_variables = await self.coding_plan_agent(messages, context_variables)
         plan_res = plan_messages[-1]["content"]
-        plan_errors = validate_plan_output(plan_res, strict=strict_agent_outputs_enabled())
+        strict_outputs = strict_agent_outputs_enabled()
+        plan_errors = validate_plan_output(plan_res, strict=strict_outputs)
         if plan_errors:
             raise ValueError(format_validation_errors(plan_errors))
+        if not strict_outputs:
+            plan_strict_errors = validate_plan_output(plan_res, strict=True)
+            if plan_strict_errors:
+                logger.warning("Plan Agent missing strict JSON: %s", format_validation_errors(plan_strict_errors))
 
         # write the model based on the model survey notes
         ml_dev_query = f"""\
@@ -402,9 +407,13 @@ Remember:
         messages = [{"role": "user", "content": ml_dev_query}]
         ml_dev_messages, context_variables = await self.ml_agent(messages, context_variables)
         ml_dev_res = ml_dev_messages[-1]["content"]
-        ml_errors = validate_ml_output(ml_dev_res, strict=strict_agent_outputs_enabled())
+        ml_errors = validate_ml_output(ml_dev_res, strict=strict_outputs)
         if ml_errors:
             raise ValueError(format_validation_errors(ml_errors))
+        if not strict_outputs:
+            ml_strict_errors = validate_ml_output(ml_dev_res, strict=True)
+            if ml_strict_errors:
+                logger.warning("ML Agent missing strict JSON: %s", format_validation_errors(ml_strict_errors))
 
         query = f"""\
 INPUT:
@@ -514,9 +523,13 @@ After you get the result, you should return the result with your analysis and su
         judge_messages.append({"role": "user", "content": ml_submit_query})
         judge_messages, context_variables = await self.ml_agent(judge_messages, context_variables, iter_times="submit")
         submit_res = judge_messages[-1]["content"]
-        submit_errors = validate_ml_output(submit_res, strict=strict_agent_outputs_enabled())
+        submit_errors = validate_ml_output(submit_res, strict=strict_outputs)
         if submit_errors:
             raise ValueError(format_validation_errors(submit_errors))
+        if not strict_outputs:
+            submit_strict_errors = validate_ml_output(submit_res, strict=True)
+            if submit_strict_errors:
+                logger.warning("ML Agent submit missing strict JSON: %s", format_validation_errors(submit_strict_errors))
 
         EXP_ITER_TIMES = 2
         for i in range(EXP_ITER_TIMES):
