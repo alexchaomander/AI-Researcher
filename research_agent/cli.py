@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Load environment variables from .env
 from dotenv import load_dotenv
-from research_agent.validation import load_and_validate_instance
+from research_agent.validation import load_and_validate_instance, validate_benchmark_instance_payload
 from research_agent.run_metadata import resolve_run_metadata_path
 from research_agent.artifacts import create_artifact_bundle, create_artifact_folder
 
@@ -378,6 +378,43 @@ def clean(apply: bool):
                 shutil.rmtree(path, ignore_errors=True)
             else:
                 path.unlink(missing_ok=True)
+
+
+@cli.command("bench-validate")
+@click.option('--category', '-c', default=None,
+              type=click.Choice(RESEARCH_CATEGORIES),
+              help='Filter by category')
+@click.option('--json', 'as_json', is_flag=True,
+              help='Output results as JSON')
+def bench_validate(category: str | None, as_json: bool):
+    """Validate benchmark instances and report pass/fail."""
+    results = []
+    categories = [category] if category else [d.name for d in BENCHMARK_DIR.iterdir() if d.is_dir()]
+    for cat in categories:
+        cat_path = BENCHMARK_DIR / cat
+        if not cat_path.is_dir():
+            continue
+        for instance_path in cat_path.glob("*.json"):
+            with instance_path.open("r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+            errors = validate_benchmark_instance_payload(payload)
+            results.append({
+                "category": cat,
+                "instance": instance_path.stem,
+                "ok": not errors,
+                "errors": errors,
+            })
+
+    if as_json:
+        click.echo(json.dumps(results, indent=2, ensure_ascii=True))
+        return
+
+    for item in results:
+        status = "PASS" if item["ok"] else "FAIL"
+        click.echo(f"[{status}] {item['category']}/{item['instance']}")
+        if item["errors"]:
+            for err in item["errors"]:
+                click.echo(f"  - {err}")
 
 
 @cli.command()

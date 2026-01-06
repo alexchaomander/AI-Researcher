@@ -151,6 +151,41 @@ def refresh_run_registry_table():
     return gr.update(value=rows)
 
 
+def render_run_registry_html():
+    rows = _load_run_registry()
+    if not rows:
+        return "<p>No run history found.</p>"
+    header = (
+        "<tr>"
+        "<th>Timestamp</th><th>Instance</th><th>Category</th><th>Task</th>"
+        "<th>Model</th><th>Log</th><th>Metadata</th>"
+        "</tr>"
+    )
+    body_rows = []
+    for row in rows:
+        log_path = row.get("log_path") or ""
+        metadata_path = row.get("metadata_path") or ""
+        log_link = f'<a href="file://{log_path}">log</a>' if log_path else ""
+        meta_link = f'<a href="file://{metadata_path}">metadata</a>' if metadata_path else ""
+        body_rows.append(
+            "<tr>"
+            f"<td>{row.get('timestamp','')}</td>"
+            f"<td>{row.get('instance_id','')}</td>"
+            f"<td>{row.get('category','')}</td>"
+            f"<td>{row.get('task_level','')}</td>"
+            f"<td>{row.get('model','')}</td>"
+            f"<td>{log_link}</td>"
+            f"<td>{meta_link}</td>"
+            "</tr>"
+        )
+    table = "<table style='width:100%; border-collapse: collapse;' border='1'>" + header + "".join(body_rows) + "</table>"
+    return table
+
+
+def _latest_metadata_path():
+    candidates = _find_run_metadata_files()
+    return candidates[0] if candidates else None
+
 def create_run_artifact_bundle(selected_path):
     if not selected_path:
         return None
@@ -1738,6 +1773,7 @@ def create_ui():
 
                 with gr.TabItem("Run History"):
                     gr.Markdown("### Run History")
+                    run_history_html = gr.HTML(value=render_run_registry_html())
                     run_registry_table = gr.Dataframe(
                         headers=[
                             "timestamp",
@@ -1754,7 +1790,19 @@ def create_ui():
                         interactive=False,
                     )
                     refresh_registry = gr.Button("Refresh run history")
+                    download_latest_bundle = gr.Button("Download latest artifacts (zip)")
+                    download_latest_folder = gr.Button("Create latest artifacts folder")
+                    run_history_file_output = gr.File(label="run history output")
                     refresh_registry.click(fn=refresh_run_registry_table, outputs=[run_registry_table])
+                    refresh_registry.click(fn=render_run_registry_html, outputs=[run_history_html])
+                    download_latest_bundle.click(
+                        fn=lambda: create_run_artifact_bundle(_latest_metadata_path()),
+                        outputs=[run_history_file_output],
+                    )
+                    download_latest_folder.click(
+                        fn=lambda: copy_run_artifacts_to_folder(_latest_metadata_path()),
+                        outputs=[run_history_file_output],
+                    )
 
 
         run_button.click(
