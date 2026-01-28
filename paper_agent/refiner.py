@@ -1,6 +1,7 @@
 import os
 import logging
 from benchmark_collection.utils.openai_utils import GPTClient
+from paper_agent.review_utils import clean_markdown_response
 
 class Refiner:
     def __init__(self, research_field, instance_id, gpt_model='gpt-4o-2024-05-13'):
@@ -45,7 +46,18 @@ class Refiner:
                 logging.warning(f"Could not find target file for section: {section_name}")
 
     async def _revise_section(self, filename, comment):
+        # Prevent writing outside of project directory
+        if os.path.dirname(filename):
+             logging.warning(f"Skipping refinement for file with directory component: {filename}")
+             return
+
         filepath = os.path.join(self.project_dir, filename)
+
+        # Verify filepath is strictly within project_dir (redundant but safe)
+        if not os.path.abspath(filepath).startswith(os.path.abspath(self.project_dir)):
+             logging.warning(f"Path traversal detected in refiner: {filepath}")
+             return
+
         if not os.path.exists(filepath):
             logging.warning(f"File not found: {filepath}")
             return
@@ -56,11 +68,15 @@ class Refiner:
         prompt = f"""You are an expert academic writer.
 You are refining a section of a paper based on a reviewer's comment.
 
-Current Content ({filename}):
+Current Content ({filename}) (Delimited by <CONTENT>):
+<CONTENT>
 {content}
+</CONTENT>
 
-Reviewer's Comment:
+Reviewer's Comment (Delimited by <COMMENT>):
+<COMMENT>
 {comment}
+</COMMENT>
 
 Task:
 Rewrite the content to address the reviewer's comment.
@@ -73,19 +89,11 @@ Output ONLY the revised LaTeX content.
 """
         response = await self.gpt_client.chat(prompt=prompt)
 
-        # Clean up code blocks if present
-        if response.startswith("```latex"):
-            response = response.split("```latex")[1]
-            if response.endswith("```"):
-                response = response.rsplit("```", 1)[0]
-        elif response.startswith("```tex"):
-             response = response.split("```tex")[1]
-             if response.endswith("```"):
-                response = response.rsplit("```", 1)[0]
-        elif response.startswith("```"):
-            response = response.split("```")[1]
-            if response.endswith("```"):
-                response = response.rsplit("```", 1)[0]
+        if not response:
+             logging.error("GPTClient returned None during refinement")
+             return
+
+        response = clean_markdown_response(response)
 
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(response.strip())

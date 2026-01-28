@@ -3,6 +3,7 @@ import json
 import logging
 from paper_agent.utils import read_latex_project
 from benchmark_collection.utils.openai_utils import GPTClient
+from paper_agent.review_utils import clean_markdown_response
 
 class Reviewer:
     def __init__(self, research_field, instance_id, gpt_model='gpt-4o-2024-05-13'):
@@ -18,11 +19,14 @@ class Reviewer:
             logging.error(f"Could not read project files in {self.project_dir}")
             return None
 
+        # Add delimiters to separate instructions from content
         prompt = f"""You are a reviewer for a top-tier AI conference (e.g., ICLR, NeurIPS).
 Please review the following research paper draft.
 
-Paper Content:
+Paper Content (Delimited by <PAPER_CONTENT>):
+<PAPER_CONTENT>
 {full_content}
+</PAPER_CONTENT>
 
 Your task is to provide a constructive and critical review.
 Focus on:
@@ -51,15 +55,11 @@ Ensure the output is valid JSON.
 """
         response = await self.gpt_client.chat(prompt=prompt)
 
-        # Clean up response to ensure it's just JSON if the model adds markdown
-        if response.startswith("```json"):
-            response = response.split("```json")[1]
-            if response.endswith("```"):
-                response = response.rsplit("```", 1)[0]
-        elif response.startswith("```"):
-            response = response.split("```")[1]
-            if response.endswith("```"):
-                response = response.rsplit("```", 1)[0]
+        if not response:
+            logging.error("GPTClient returned None")
+            return None
+
+        response = clean_markdown_response(response)
 
         try:
             review_data = json.loads(response)

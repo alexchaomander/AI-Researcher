@@ -1,36 +1,49 @@
 import os
 import re
+import logging
 
-def read_latex_project(project_dir, main_file):
+def read_latex_project(project_dir, main_file, max_depth=10):
     """
     Reads a LaTeX project, recursively expanding \input{} commands.
     Returns the full text content.
+    Prevents path traversal and infinite recursion.
     """
-    main_file_path = os.path.join(project_dir, main_file)
-    if not os.path.exists(main_file_path):
-        raise FileNotFoundError(f"Main file not found: {main_file_path}")
+    project_dir = os.path.abspath(project_dir)
+    visited_files = set()
 
-    with open(main_file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
+    def process_file(filename, current_depth):
+        if current_depth > max_depth:
+            logging.warning(f"Max recursion depth reached at {filename}")
+            return f"% [Max depth reached: {filename}]\n"
 
-    # Regex to find \input{filename}
-    # Matches \input{filename} or \input{filename.tex}
-    input_regex = re.compile(r'\\input\{([^}]+)\}')
+        # Resolve path and check for traversal
+        full_path = os.path.abspath(os.path.join(project_dir, filename))
+        if not full_path.startswith(project_dir):
+            logging.warning(f"Path traversal attempt detected: {filename}")
+            return f"% [Path traversal blocked: {filename}]\n"
 
-    def replace_input(match):
-        filename = match.group(1)
-        if not filename.endswith('.tex'):
-            filename += '.tex'
+        if full_path in visited_files:
+            logging.warning(f"Circular dependency detected: {filename}")
+            return f"% [Circular dependency: {filename}]\n"
 
-        filepath = os.path.join(project_dir, filename)
-        if os.path.exists(filepath):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                sub_content = f.read()
-            # Recursively process imports in the sub-file
-            return input_regex.sub(replace_input, sub_content)
-        else:
-            print(f"Warning: file not found: {filepath}")
-            return match.group(0) # Keep original text if file not found
+        if not os.path.exists(full_path):
+             logging.warning(f"File not found: {full_path}")
+             return f"% [File not found: {filename}]\n"
 
-    full_content = input_regex.sub(replace_input, content)
-    return full_content
+        visited_files.add(full_path)
+
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Regex to find \input{filename}
+        input_regex = re.compile(r'\\input\{([^}]+)\}')
+
+        def replace_input(match):
+            sub_filename = match.group(1)
+            if not sub_filename.endswith('.tex'):
+                sub_filename += '.tex'
+            return process_file(sub_filename, current_depth + 1)
+
+        return input_regex.sub(replace_input, content)
+
+    return process_file(main_file, 0)
